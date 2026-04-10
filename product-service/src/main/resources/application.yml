@@ -1,0 +1,23 @@
+server:
+  port: 8082 # 商品服务跑在 8082 端口
+
+spring:
+  application:
+    name: product-service # 注册到 Nacos 的名字 (与 Gateway 里的路由配置对应)
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+        file-extension: yaml
+  datasource:
+    url: jdbc:mysql://localhost:3306/my_system?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+
+file:
+    upload-path: /Users/jiejie/Desktop/uploads/ # 改成你电脑上的真实文件夹路径
