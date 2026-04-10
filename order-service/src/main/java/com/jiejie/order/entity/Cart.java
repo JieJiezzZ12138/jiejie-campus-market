@@ -9,7 +9,11 @@ public class Cart {
     private Long productId;
     private Integer quantity;
 
-    // 👈 必须手动加上这两个字段，用于接收数据库关联查询的结果
+    // --- 关联商品表查出来的额外字段 ---
     private String productName;
     private Double price;
+
+    // 👉 新增：用于接收商品图片的字段
+    private String image;
+    private String imageUrl;
 }

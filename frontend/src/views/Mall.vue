@@ -28,7 +28,7 @@
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item @click="router.push('/orders')">我的订单</el-dropdown-item>
-                <el-dropdown-item>我的收藏</el-dropdown-item>
+                <el-dropdown-item v-if="userInfo.role === 'ADMIN'" @click="router.push('/admin')">进入后台</el-dropdown-item>
                 <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -48,9 +48,13 @@
       </el-carousel>
 
       <div class="category-tabs">
-        <el-tabs v-model="activeCategory">
-          <el-tab-pane label="🚀 最新发布" name="new"></el-tab-pane>
-          <el-tab-pane label="💻 数码电子" name="digital"></el-tab-pane>
+        <el-tabs v-model="activeCategory" @tab-change="handleSearch">
+          <el-tab-pane label="🚀 全部商品" name=""></el-tab-pane>
+          <el-tab-pane label="💻 数码电子" name="数码电子"></el-tab-pane>
+          <el-tab-pane label="📚 书籍资料" name="书籍资料"></el-tab-pane>
+          <el-tab-pane label="👗 衣物鞋帽" name="衣物鞋帽"></el-tab-pane>
+          <el-tab-pane label="🧴 生活用品" name="生活用品"></el-tab-pane>
+          <el-tab-pane label="📦 其他闲置" name="其他闲置"></el-tab-pane>
         </el-tabs>
       </div>
 
@@ -58,19 +62,21 @@
         <el-col :span="6" v-for="item in productList" :key="item.id" style="margin-bottom: 20px;">
           <el-card shadow="hover" :body-style="{ padding: '0px' }" class="product-card">
             <div class="image-placeholder" :style="{ background: item.bgColor }">
-              <el-icon v-if="!item.image" size="40" color="#fff"><Picture /></el-icon>
-              <img v-else :src="item.image" class="product-img" />
+              <el-icon v-if="!item.image && !item.imageUrl" size="40" color="#fff"><Picture /></el-icon>
+              <img v-else :src="getImageUrl(item.image || item.imageUrl)" class="product-img" />
             </div>
             <div class="product-info">
-              <h3 class="title line-clamp-2">{{ item.name }}</h3>
+              <h3 class="title line-clamp-1">{{ item.name }}</h3>
+              <p class="desc line-clamp-2">{{ item.description || '这件宝贝还没有详细描述哦~' }}</p>
+              
               <div class="price-row">
                 <span class="price">¥ {{ item.price }}</span>
-                <span class="original-price">原价 ¥{{ item.originalPrice }}</span>
+                <span class="original-price" v-if="item.originalPrice > 0">原价 ¥{{ item.originalPrice }}</span>
               </div>
               
               <div class="seller-info">
                 <div class="seller-tag">
-                  <el-avatar :size="20" src="https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png" />
+                  <el-avatar :size="20" :src="item.sellerAvatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'" />
                   <span class="seller-name">{{ item.sellerName || '匿名卖家' }}</span>
                 </div>
                 <el-button type="primary" size="small" circle :icon="ShoppingCart" @click.stop="addToCart(item)" />
@@ -81,11 +87,40 @@
       </el-row>
     </div>
 
-    <el-dialog v-model="publishVisible" title="发布我的闲置" width="500px">
+    <el-dialog v-model="publishVisible" title="发布我的闲置" width="550px">
       <el-form :model="publishForm" label-width="100px">
-        <el-form-item label="商品名称" required><el-input v-model="publishForm.name" /></el-form-item>
+        <el-form-item label="商品图片" required>
+          <el-upload
+            class="avatar-uploader"
+            action="http://localhost:8080/product/upload" 
+            :headers="uploadHeaders"
+            :show-file-list="false"
+            :on-success="handleUploadSuccess"
+            name="file"
+          >
+            <img v-if="publishForm.image" :src="getImageUrl(publishForm.image)" class="avatar" />
+            <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
+          </el-upload>
+        </el-form-item>
+
+        <el-form-item label="商品名称" required><el-input v-model="publishForm.name" placeholder="请输入核心关键字" /></el-form-item>
+        
+        <el-form-item label="商品分类" required>
+          <el-select v-model="publishForm.category" placeholder="请选择正确的商品分类" style="width: 100%;">
+            <el-option label="数码电子" value="数码电子" />
+            <el-option label="书籍资料" value="书籍资料" />
+            <el-option label="衣物鞋帽" value="衣物鞋帽" />
+            <el-option label="生活用品" value="生活用品" />
+            <el-option label="其他闲置" value="其他闲置" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="详细描述">
+          <el-input type="textarea" v-model="publishForm.description" :rows="3" placeholder="介绍一下你的闲置（如：几成新、购买时间、是否包邮等）" />
+        </el-form-item>
+
         <el-form-item label="转手价格" required><el-input-number v-model="publishForm.price" :min="0.1" :precision="2" :step="10" /></el-form-item>
-        <el-form-item label="购入原价"><el-input-number v-model="publishForm.originalPrice" :min="0.1" :precision="2" :step="10" /></el-form-item>
+        <el-form-item label="购入原价"><el-input-number v-model="publishForm.originalPrice" :min="0" :precision="2" :step="10" /></el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
@@ -102,11 +137,13 @@
       </div>
       <div v-else class="cart-list">
         <div v-for="item in cartList" :key="item.id" class="cart-item">
+          <img v-if="item.image || item.imageUrl" :src="getImageUrl(item.image || item.imageUrl)" class="cart-item-img" />
+          <div v-else class="cart-item-img placeholder"><el-icon><Picture /></el-icon></div>
           <div class="cart-item-info">
-            <h4 class="cart-item-title">{{ item.name }}</h4>
+            <h4 class="cart-item-title">{{ item.productName || item.name || '未知商品' }}</h4>
             <span class="cart-item-price">¥ {{ item.price }}</span>
           </div>
-          <el-button type="danger" size="small" plain @click="removeFromCart(item.productId)">移除</el-button>
+          <el-button type="danger" size="small" plain @click="removeFromCart(item)">移除</el-button>
         </div>
         <div class="cart-footer">
           <div class="total-price">合计: <span>¥ {{ cartTotalPrice }}</span></div>
@@ -122,26 +159,39 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ShoppingBag, Search, ShoppingCart, Plus, Picture } from '@element-plus/icons-vue'
-import request from '../utils/request' 
+import request from '../utils/request' 
 
 const router = useRouter()
 const userInfo = ref(JSON.parse(localStorage.getItem('userInfo') || '{}'))
 
-// --- 商品列表逻辑 ---
 const searchQuery = ref('')
-const activeCategory = ref('new')
+const activeCategory = ref('')
 const productList = ref([])
 const banners = [
   { title: '毕业季大甩卖', subtitle: '全场闲置 1 折起，学长学姐吐血推荐', color: '#a0cfff' },
   { title: '校园数码节', subtitle: '二手电脑/平板/相机 淘好物', color: '#f3d19e' }
 ]
 
+const getImageUrl = (url) => {
+  if (!url) return '';
+  if (url.includes('localhost:8080') || url.includes('localhost:8081')) {
+    return url.replace(/8080|8081/g, '8082');
+  }
+  if (url.startsWith('http')) return url;
+  return 'http://localhost:8082' + url;
+}
+
+// 👉 真正发请求，把分类和关键字传给后端
 const handleSearch = () => fetchProducts()
 
 const fetchProducts = async () => {
   try {
-    // 👉 升级：无需传 username，后端从 Token 获取身份
-    const res = await request.get('/product/list', { params: { keyword: searchQuery.value } })
+    const res = await request.get('/product/list', { 
+      params: { 
+        keyword: searchQuery.value,
+        category: activeCategory.value // 传入分类
+      } 
+    })
     const colors = ['#ffb8b8', '#b8e9ff', '#b8ffc9', '#ffdfb8', '#e1b8ff', '#b8fff4']
     productList.value = res.map((item, index) => ({
       ...item,
@@ -152,26 +202,44 @@ const fetchProducts = async () => {
   }
 }
 
-// --- 发布闲置 ---
 const publishVisible = ref(false)
 const publishLoading = ref(false)
-const publishForm = ref({ name: '', price: 0, originalPrice: 0 })
+const publishForm = ref({ name: '', description: '', category: '其他闲置', price: 0, originalPrice: 0, image: '' })
+
+const localToken = localStorage.getItem('token') || localStorage.getItem('jiejie_assignment_token') || '';
+const uploadHeaders = {
+  token: localToken,
+  Authorization: localToken 
+}
+
+const handleUploadSuccess = (res) => {
+  if (res.code === 200) {
+    publishForm.value.image = res.data
+    ElMessage.success('图片上传成功！')
+  } else {
+    ElMessage.error(res.msg || '图片上传失败')
+  }
+}
 
 const submitPublish = async () => {
-  if (!publishForm.value.name || publishForm.value.price <= 0) return ElMessage.warning('请填写完整')
+  if (!publishForm.value.name || publishForm.value.price <= 0 || !publishForm.value.image) {
+    return ElMessage.warning('请填写完整商品信息并上传图片')
+  }
+  
   publishLoading.value = true
   try {
     await request.post('/product/publish', publishForm.value)
-    ElMessage.success('发布成功，请等待审核！')
+    ElMessage.success('发布成功，商品已上架！')
     publishVisible.value = false 
-    publishForm.value = { name: '', price: 0, originalPrice: 0 }
+    publishForm.value = { name: '', description: '', category: '其他闲置', price: 0, originalPrice: 0, image: '' }
     fetchProducts() 
+  } catch (error) {
+    console.error("发布失败", error)
   } finally {
     publishLoading.value = false
   }
 }
 
-// --- 🛒 购物车逻辑 (核心升级：不再手动拼用户名) ---
 const cartVisible = ref(false)
 const cartList = ref([])
 
@@ -181,7 +249,6 @@ const cartTotalPrice = computed(() => {
 
 const fetchCart = async () => {
   try {
-    // 👉 升级：直接请求，拦截器会自动带上 Token
     const res = await request.get('/cart/list')
     cartList.value = res || []
   } catch (error) {
@@ -191,7 +258,6 @@ const fetchCart = async () => {
 
 const addToCart = async (product) => {
   try {
-    // 👉 升级：只传 productId，后端从请求头认出你是谁
     await request.post(`/cart/add?productId=${product.id}`)
     ElMessage.success(`《${product.name}》已加入购物车！`)
     fetchCart() 
@@ -200,9 +266,11 @@ const addToCart = async (product) => {
   }
 }
 
-const removeFromCart = async (productId) => {
+const removeFromCart = async (item) => {
   try {
-    await request.post(`/cart/remove?productId=${productId}`)
+    const targetId = item.productId || item.product_id || item.id;
+    if (!targetId) return ElMessage.error('无法获取商品ID，移除失败');
+    await request.post(`/cart/remove?productId=${targetId}`)
     ElMessage.success('已从购物车移除')
     fetchCart() 
   } catch (error) {
@@ -210,27 +278,19 @@ const removeFromCart = async (productId) => {
   }
 }
 
-// --- 💳 结算逻辑 ---
 const checkoutLoading = ref(false)
-
 const handleCheckout = async () => {
   if (cartList.value.length === 0) return ElMessage.warning('购物车是空的哦')
-  
   checkoutLoading.value = true
   try {
-    // 👉 升级：结算接口安全化
     await request.post(`/order/checkout?totalAmount=${cartTotalPrice.value}`)
-    
     await ElMessageBox.alert('订单已生成，请前往订单中心完成支付', '🎉 下单成功', { 
-      confirmButtonText: '去支付', 
-      type: 'success', 
-      center: true 
+      confirmButtonText: '去支付', type: 'success', center: true 
     })
-    
     cartVisible.value = false
     fetchCart()      
-    fetchProducts() // 商品被下架了，刷新首页
-    router.push('/orders') // 自动跳转到订单页面
+    fetchProducts()
+    router.push('/orders')
   } catch (error) {
     console.error("结算失败", error)
   } finally {
@@ -238,7 +298,6 @@ const handleCheckout = async () => {
   }
 }
 
-// --- 初始化与退出 ---
 onMounted(() => {
   fetchProducts()
   fetchCart() 
@@ -246,14 +305,14 @@ onMounted(() => {
 
 const handleLogout = () => {
   ElMessageBox.confirm('确定要退出账号吗？', '提示', { type: 'warning' }).then(() => {
-    localStorage.clear() // 清空所有 token 和用户信息
+    localStorage.clear() 
     router.push('/login')
   }).catch(() => {})
 }
 </script>
 
 <style scoped>
-/* 样式保留你原来的，增加了一个用户信息的微调 */
+/* 原样保留你的样式 */
 .mall-container { min-height: 100vh; background-color: #f4f4f4; }
 .mall-header { background-color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.06); position: sticky; top: 0; z-index: 100; padding: 0; }
 .header-content { max-width: 1200px; margin: 0 auto; height: 60px; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; }
@@ -270,26 +329,34 @@ const handleLogout = () => {
 .banner-content { height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.1); }
 .banner-content h2 { font-size: 36px; margin: 0 0 10px 0; }
 .category-tabs { background: #fff; padding: 10px 20px 0; border-radius: 8px; margin-bottom: 20px; }
-.product-card { border-radius: 8px; border: none; transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; height: 100%; }
+.product-card { border-radius: 8px; border: none; transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; height: 100%; display: flex; flex-direction: column;}
 .product-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
 .image-placeholder { height: 200px; display: flex; justify-content: center; align-items: center; position: relative; overflow: hidden; }
 .product-img { width: 100%; height: 100%; object-fit: cover; }
-.product-info { padding: 14px; }
-.title { font-size: 14px; color: #333; margin: 0 0 10px 0; height: 40px; line-height: 20px; }
+.product-info { padding: 14px; flex: 1; display: flex; flex-direction: column;}
+.title { font-size: 15px; font-weight: bold; color: #333; margin: 0 0 5px 0; }
+.desc { font-size: 12px; color: #999; margin: 0 0 10px 0; line-height: 1.5; min-height: 36px;}
+.line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
 .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.price-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.price-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; margin-top: auto;}
 .price { font-size: 20px; color: #f56c6c; font-weight: bold; }
 .original-price { font-size: 12px; color: #999; text-decoration: line-through; }
 .seller-info { border-top: 1px solid #f5f5f5; padding-top: 10px; display: flex; justify-content: space-between; align-items: center; }
 .seller-tag { display: flex; align-items: center; gap: 6px; }
 .seller-name { font-size: 12px; color: #666; }
-
 .empty-cart { text-align: center; color: #999; margin-top: 80px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .cart-list { display: flex; flex-direction: column; height: 100%; }
-.cart-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid #eee; }
-.cart-item-title { margin: 0 0 8px 0; font-size: 14px; color: #333; }
+.cart-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid #eee; gap: 15px; }
+.cart-item-img { width: 60px; height: 60px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+.cart-item-img.placeholder { background: #f0f2f5; display: flex; justify-content: center; align-items: center; color: #909399; font-size: 20px; }
+.cart-item-info { flex: 1; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
+.cart-item-title { margin: 0 0 8px 0; font-size: 14px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cart-item-price { color: #f56c6c; font-weight: bold; }
 .cart-footer { margin-top: auto; padding-top: 20px; border-top: 2px solid #eee; }
 .total-price { font-size: 16px; font-weight: bold; margin-bottom: 15px; text-align: right; }
 .total-price span { color: #f56c6c; font-size: 24px; }
+:deep(.avatar-uploader .el-upload) { border: 1px dashed var(--el-border-color); border-radius: 6px; cursor: pointer; position: relative; overflow: hidden; transition: var(--el-transition-duration-fast); }
+:deep(.avatar-uploader .el-upload:hover) { border-color: var(--el-color-primary); }
+:deep(.avatar-uploader-icon) { font-size: 28px; color: #8c939d; width: 178px; height: 178px; text-align: center; }
+.avatar { width: 178px; height: 178px; display: block; object-fit: cover; }
 </style>

@@ -9,9 +9,6 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 
-/**
- * 购物车管理控制器 (已修复 405 移除报错)
- */
 @RestController
 @RequestMapping("/cart")
 public class CartController {
@@ -21,7 +18,6 @@ public class CartController {
 
     /**
      * 1. 查询购物车列表
-     * 对应前端：GET /cart/list
      */
     @GetMapping("/list")
     public Result getCartList(HttpServletRequest request) {
@@ -29,7 +25,6 @@ public class CartController {
         if (currentUsername == null || currentUsername.isEmpty()) {
             return Result.error("未获取到登录状态");
         }
-        System.out.println("查询用户 [" + currentUsername + "] 的购物车列表");
         try {
             List<Cart> list = cartMapper.selectByUsername(currentUsername);
             return Result.success(list);
@@ -40,7 +35,6 @@ public class CartController {
 
     /**
      * 2. 加入购物车
-     * 对应前端：POST /cart/add?productId=xxx
      */
     @PostMapping("/add")
     public Result addToCart(@RequestParam("productId") Long productId, HttpServletRequest request) {
@@ -48,15 +42,11 @@ public class CartController {
         if (currentUsername == null || currentUsername.isEmpty()) {
             return Result.error("未获取到登录状态");
         }
-        System.out.println("加入购物车：用户=" + currentUsername + ", 商品ID=" + productId);
         try {
-            // 检查商品是否已在购物车中
             Cart existCart = cartMapper.findExistItem(currentUsername, productId);
             if (existCart != null) {
-                // 已存在则数量 +1
                 cartMapper.updateQuantity(existCart.getId(), 1);
             } else {
-                // 不存在则新增记录
                 Cart cart = new Cart();
                 cart.setUsername(currentUsername);
                 cart.setProductId(productId);
@@ -71,32 +61,39 @@ public class CartController {
     }
 
     /**
-     * 3. 移除购物车商品 (修复 405 移除报错的关键)
-     * 这里使用 RequestMethod.POST 配合 RequestMethod.GET，双重保险解决 405 问题
+     * 3. 移除购物车商品 (👉 终极修复版：精准区分商品ID和流水号ID)
      */
     @RequestMapping(value = "/remove", method = {RequestMethod.GET, RequestMethod.POST})
     public Result removeCartItem(
             @RequestParam(value = "id", required = false) Long id,
             @RequestParam(value = "productId", required = false) Long productId,
             HttpServletRequest request) {
+
         String currentUsername = (String) request.getAttribute("currentUsername");
         if (currentUsername == null || currentUsername.isEmpty()) {
             return Result.error("未获取到登录状态");
         }
-        // 1. 逻辑判断：如果 id 为空，就尝试用 productId
-        Long targetId = (id != null) ? id : productId;
-        System.out.println("收到移除请求：接收到的参数 id=" + id + ", productId=" + productId + ", 用户=" + currentUsername);
-        if (targetId == null) {
-            return Result.error("删除失败：未接收到有效的 ID 参数");
+
+        int rows = 0;
+
+        // 👉 逻辑分流：如果前端传了 productId，就按【用户名 + 商品ID】去删！
+        if (productId != null) {
+            System.out.println("执行删除：用户=" + currentUsername + " 移除商品ID=" + productId);
+            rows = cartMapper.deleteByUsernameAndProductId(currentUsername, productId);
         }
-        System.out.println("👉 准备执行删除，目标记录主键 ID =" + targetId);
-        // 2. 核心操作：按主键 ID 删除
-        int rows = cartMapper.deleteById(targetId);
+        // 否则如果传了流水号 id，就按【主键 ID】去删
+        else if (id != null) {
+            System.out.println("执行删除：移除购物车流水主键=" + id);
+            rows = cartMapper.deleteById(id);
+        }
+        else {
+            return Result.error("删除失败：未接收到有效的商品 ID");
+        }
+
         if (rows > 0) {
             return Result.success("移除成功");
         } else {
-            // 如果删不掉，说明数据库里确实没有 ID 为 targetId 的那一行记录
-            return Result.error("移除失败：数据库中不存在 ID 为 " + targetId + " 的记录");
+            return Result.error("移除失败：购物车中找不到该商品");
         }
     }
 
@@ -111,7 +108,6 @@ public class CartController {
 
     /**
      * 5. 清空购物车
-     * 对应前端：POST /cart/clear
      */
     @PostMapping("/clear")
     public Result clearCart(HttpServletRequest request) {
@@ -119,7 +115,6 @@ public class CartController {
         if (currentUsername == null || currentUsername.isEmpty()) {
             return Result.error("未获取到登录状态");
         }
-        System.out.println("清空用户 [" + currentUsername + "] 的购物车");
         cartMapper.deleteByUsername(currentUsername);
         return Result.success("购物车已清空");
     }

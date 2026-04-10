@@ -9,10 +9,10 @@ public interface CartMapper {
 
     /**
      * 1. 查询购物车列表
-     * 明确指定 c.product_id as productId，确保映射到实体类
+     * 👉 核心修复：把商品的 image 和 image_url 也查出来
      */
     @Select("SELECT c.id, c.username, c.product_id as productId, c.quantity, " +
-            "p.name as productName, p.price " +
+            "p.name as productName, p.price, p.image, p.image_url as imageUrl " +
             "FROM cart c " +
             "LEFT JOIN product p ON c.product_id = p.id " +
             "WHERE c.username = #{username}")
@@ -52,8 +52,7 @@ public interface CartMapper {
     int deleteByUsername(@Param("username") String username);
 
     /**
-     * 7. 根据用户名和商品ID移除 (修复移除失败的关键)
-     * 确保 @Param 的名称与 SQL 里的 #{} 完全对应
+     * 7. 根据用户名和商品ID移除
      */
     @Delete("DELETE FROM cart WHERE username = #{username} AND product_id = #{productId}")
     int deleteByUsernameAndProductId(@Param("username") String username, @Param("productId") Long productId);
