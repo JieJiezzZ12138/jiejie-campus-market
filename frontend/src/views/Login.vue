@@ -35,6 +35,9 @@
             <el-form-item prop="nickname">
               <el-input v-model="registerForm.nickname" placeholder="昵称（不填则与账号相同）" :prefix-icon="User" size="large" />
             </el-form-item>
+            <el-form-item prop="phone">
+              <el-input v-model="registerForm.phone" placeholder="手机号（必填）" size="large" />
+            </el-form-item>
             <el-form-item prop="campusAddress">
               <el-input v-model="registerForm.campusAddress" placeholder="常用面交地址（可选）" size="large" />
             </el-form-item>
@@ -76,6 +79,7 @@ const loginForm = reactive({ username: '', password: '', remember: false })
 const registerForm = reactive({
   username: '',
   nickname: '',
+  phone: '',
   campusAddress: '',
   password: '',
   confirmPassword: ''
@@ -96,6 +100,10 @@ const rules = {
 
 const registerRules = {
   username: [{ required: true, message: '请输入账号', trigger: 'blur' }],
+  phone: [
+    { required: true, message: '请输入手机号', trigger: 'blur' },
+    { pattern: /^\\d{7,20}$/, message: '手机号格式不正确', trigger: 'blur' }
+  ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码至少 6 位', trigger: 'blur' }
@@ -176,6 +184,7 @@ const handleRegister = () => {
         username: registerForm.username.trim(),
         password: registerForm.password,
         nickname: registerForm.nickname?.trim() || undefined,
+        phone: registerForm.phone?.trim() || undefined,
         campusAddress: registerForm.campusAddress?.trim() || undefined
       })
       persistSession(res.token, res.userInfo)

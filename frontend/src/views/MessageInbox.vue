@@ -24,6 +24,7 @@
         :data="rows"
         stripe
         class="inbox-table"
+        :row-class-name="rowClassName"
         @row-click="openThread"
       >
         <el-table-column label="对方" min-width="140">
@@ -86,6 +87,10 @@ const openThread = (row) => {
   router.push(`/chat/thread/${row.threadId}`)
 }
 
+const rowClassName = ({ row }) => {
+  return row?.unreadCount && Number(row.unreadCount) > 0 ? 'row-unread' : ''
+}
+
 onMounted(() => {
   loadInbox()
 })
@@ -119,6 +124,16 @@ onActivated(() => {
 }
 .inbox-table :deep(tbody tr) {
   cursor: pointer;
+}
+.inbox-table :deep(.row-unread td) {
+  background: #fff7e6 !important;
+}
+.unread-badge {
+  position: relative;
+  z-index: 5;
+}
+.unread-badge :deep(.el-badge__content) {
+  z-index: 6;
 }
 .unread-badge :deep(.el-badge__content) {
   top: -2px;

@@ -207,6 +207,32 @@ public class OrderController {
     }
 
     /**
+     * 5. 买家确认收货：已发货 → 已收货
+     */
+    @PostMapping("/receive")
+    public Result receiveOrder(HttpServletRequest request, @RequestParam("orderId") Long orderId) {
+        Long currentUserId = (Long) request.getAttribute("currentUserId");
+        if (currentUserId == null) {
+            return Result.error("请先登录");
+        }
+        Order o = orderMapper.findByIdWithProduct(orderId);
+        if (o == null) {
+            return Result.error("订单不存在");
+        }
+        if (o.getBuyerId() == null || !currentUserId.equals(o.getBuyerId())) {
+            return Result.error("只有买家可以确认收货");
+        }
+        if (o.getOrderStatus() == null || o.getOrderStatus() != 2) {
+            return Result.error("当前订单状态不可确认收货（需卖家已发货）");
+        }
+        int n = orderMapper.markReceived(orderId, currentUserId);
+        if (n == 0) {
+            return Result.error("确认收货失败，请重试");
+        }
+        return Result.success("已确认收货，订单已完成");
+    }
+
+    /**
      * 买卖双方就订单问题提交反馈，通知管理员介入
      */
     @PostMapping("/feedback")

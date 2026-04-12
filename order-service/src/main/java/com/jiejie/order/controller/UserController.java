@@ -64,14 +64,25 @@ public class UserController {
         String username = body.get("username") != null ? body.get("username").trim() : "";
         String password = body.get("password");
         String nickname = body.get("nickname");
+        String phone = body.get("phone") != null ? body.get("phone").trim() : "";
         if (!StringUtils.hasText(username)) {
             return Result.error("请输入账号");
         }
         if (!StringUtils.hasText(password) || password.length() < 6) {
             return Result.error("密码至少 6 位");
         }
+        if (!StringUtils.hasText(phone)) {
+            return Result.error("请输入手机号");
+        }
+        if (!phone.matches("^\\d{7,20}$")) {
+            return Result.error("手机号格式不正确");
+        }
         if (userMapper.findByUsername(username) != null) {
             return Result.error("该账号已被注册");
+        }
+        User byPhone = userMapper.findByPhone(phone);
+        if (byPhone != null) {
+            return Result.error("该手机号已被注册");
         }
 
         User user = new User();
@@ -79,6 +90,7 @@ public class UserController {
         user.setPassword(password);
         user.setNickname(StringUtils.hasText(nickname) ? nickname.trim() : username);
         user.setAvatar(null);
+        user.setPhone(phone);
         user.setRole("USER");
         user.setStatus(1);
         user.setCampusAddress(body.get("campusAddress") != null ? body.get("campusAddress").trim() : null);
@@ -114,12 +126,24 @@ public class UserController {
         }
         String nickname = body.get("nickname");
         String avatar = body.get("avatar");
+        String phone = body.get("phone");
         String campusAddress = body.get("campusAddress");
         if (!StringUtils.hasText(nickname)) {
             return Result.error("昵称不能为空");
         }
+        String phoneTrim = phone != null ? phone.trim() : "";
+        if (StringUtils.hasText(phoneTrim) && !phoneTrim.matches("^\\d{7,20}$")) {
+            return Result.error("手机号格式不正确");
+        }
+        if (StringUtils.hasText(phoneTrim)) {
+            User existingPhone = userMapper.findByPhone(phoneTrim);
+            if (existingPhone != null && !existingPhone.getId().equals(userId)) {
+                return Result.error("该手机号已被其他账号绑定");
+            }
+        }
         userMapper.updateProfile(userId, nickname.trim(),
                 StringUtils.hasText(avatar) ? avatar.trim() : null,
+                StringUtils.hasText(phoneTrim) ? phoneTrim : null,
                 StringUtils.hasText(campusAddress) ? campusAddress.trim() : null);
         User fresh = userMapper.findById(userId);
         fresh.setPassword(null);

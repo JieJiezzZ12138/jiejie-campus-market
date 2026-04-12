@@ -7,6 +7,7 @@ public class SysUser {
     private String nickname;
     private String role;
     private String avatar;
+    private String phone;
     private Integer auditStatus; // 0-封禁, 1-正常, 2-待审核
 
     // Getters and Setters
@@ -22,6 +23,8 @@ public class SysUser {
     public void setRole(String role) { this.role = role; }
     public String getAvatar() { return avatar; }
     public void setAvatar(String avatar) { this.avatar = avatar; }
+    public String getPhone() { return phone; }
+    public void setPhone(String phone) { this.phone = phone; }
     public Integer getAuditStatus() { return auditStatus; }
     public void setAuditStatus(Integer auditStatus) { this.auditStatus = auditStatus; }
 }

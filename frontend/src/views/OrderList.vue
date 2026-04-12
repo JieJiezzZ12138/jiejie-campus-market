@@ -49,6 +49,42 @@
           </template>
         </el-table-column>
 
+        <el-table-column label="对方信息" width="200">
+          <template #default="scope">
+            <div class="user-info">
+              <div class="user-name">
+                {{ orderScope === 'buyer'
+                  ? (scope.row.sellerNickname || '卖家')
+                  : (scope.row.buyerNickname || '买家') }}
+              </div>
+              <div class="user-contact">
+                电话/账号：{{ orderScope === 'buyer'
+                  ? (scope.row.sellerPhone || scope.row.sellerUsername || '-')
+                  : (scope.row.buyerPhone || scope.row.buyerUsername || '-') }}
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="买家地址" width="180">
+          <template #default="scope">
+            <el-tag
+              v-if="orderScope === 'seller' && scope.row.buyerAddress"
+              type="warning"
+              effect="plain"
+            >
+              {{ scope.row.buyerAddress }}
+            </el-tag>
+            <span v-else>{{ scope.row.buyerAddress || '-' }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="卖家地址" width="180">
+          <template #default="scope">
+            {{ scope.row.sellerAddress || '-' }}
+          </template>
+        </el-table-column>
+
         <el-table-column label="状态" width="130">
           <template #default="scope">
             <el-tag :type="statusTagType(scope.row.orderStatus)">
@@ -82,6 +118,15 @@
                 @click="handleShip(scope.row)"
               >
                 确认发货
+              </el-button>
+              <el-button
+                v-if="orderScope === 'buyer' && scope.row.orderStatus === 2"
+                type="success"
+                size="small"
+                :loading="receiveLoadingId === scope.row.id"
+                @click="handleReceive(scope.row)"
+              >
+                确认收货
               </el-button>
             </el-space>
           </template>
@@ -136,6 +181,7 @@ const payLoading = ref(false)
 const currentOrder = ref({})
 const orderScope = ref('buyer')
 const shipLoadingId = ref(null)
+const receiveLoadingId = ref(null)
 
 const feedbackVisible = ref(false)
 const feedbackOrder = ref(null)
@@ -146,6 +192,7 @@ const statusText = (s) => {
   if (s === 0) return '待支付'
   if (s === 1) return '已支付 / 待发货'
   if (s === 2) return '已发货'
+  if (s === 3) return '已完成'
   return '未知'
 }
 
@@ -153,6 +200,7 @@ const statusTagType = (s) => {
   if (s === 0) return 'danger'
   if (s === 1) return 'warning'
   if (s === 2) return 'success'
+  if (s === 3) return 'success'
   return 'info'
 }
 
@@ -220,6 +268,19 @@ const handleShip = async (row) => {
   }
 }
 
+const handleReceive = async (row) => {
+  receiveLoadingId.value = row.id
+  try {
+    await request.post(`/order/receive?orderId=${row.id}`)
+    ElMessage.success('已确认收货')
+    await fetchOrders()
+  } catch (e) {
+    console.error(e)
+  } finally {
+    receiveLoadingId.value = null
+  }
+}
+
 const confirmPay = async () => {
   if (!currentOrder.value.id) return
 
@@ -281,6 +342,19 @@ onMounted(() => {
 }
 .p-name {
   font-weight: 500;
+}
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.user-name {
+  font-weight: 600;
+  color: #303133;
+}
+.user-contact {
+  font-size: 12px;
+  color: #909399;
 }
 .price {
   color: #f56c6c;

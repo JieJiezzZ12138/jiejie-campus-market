@@ -16,11 +16,11 @@ public interface UserMapper {
      * 1. 真实登录查询：根据账号找用户
      * 👉 修复：把数据库的 audit_status 映射给实体类的 status 字段
      */
-    @Select("SELECT id, username, password, nickname, avatar, role, audit_status as status, campus_address " +
+    @Select("SELECT id, username, password, nickname, avatar, phone, role, audit_status as status, campus_address " +
             "FROM sys_user WHERE username = #{username}")
     User findByUsername(@Param("username") String username);
 
-    @Select("SELECT id, username, password, nickname, avatar, role, audit_status as status, campus_address " +
+    @Select("SELECT id, username, password, nickname, avatar, phone, role, audit_status as status, campus_address " +
             "FROM sys_user WHERE id = #{id}")
     User findById(@Param("id") Long id);
 
@@ -28,20 +28,25 @@ public interface UserMapper {
      * 2. 管理员大盘：获取所有用户
      * 👉 修复：同样映射 audit_status
      */
-    @Select("SELECT id, username, nickname, avatar, role, audit_status as status, campus_address " +
+    @Select("SELECT id, username, nickname, avatar, phone, role, audit_status as status, campus_address " +
             "FROM sys_user ORDER BY id DESC")
     List<User> findAllForAdmin();
 
-    @Insert("INSERT INTO sys_user (username, password, nickname, avatar, role, audit_status, campus_address, create_time) " +
-            "VALUES (#{username}, #{password}, #{nickname}, #{avatar}, #{role}, #{status}, #{campusAddress}, NOW())")
+    @Insert("INSERT INTO sys_user (username, password, nickname, avatar, phone, role, audit_status, campus_address, create_time) " +
+            "VALUES (#{username}, #{password}, #{nickname}, #{avatar}, #{phone}, #{role}, #{status}, #{campusAddress}, NOW())")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     void insert(User user);
 
-    @Update("UPDATE sys_user SET nickname = #{nickname}, avatar = #{avatar}, campus_address = #{campusAddress} WHERE id = #{id}")
+    @Update("UPDATE sys_user SET nickname = #{nickname}, avatar = #{avatar}, phone = #{phone}, campus_address = #{campusAddress} WHERE id = #{id}")
     void updateProfile(@Param("id") Long id,
                        @Param("nickname") String nickname,
                        @Param("avatar") String avatar,
+                       @Param("phone") String phone,
                        @Param("campusAddress") String campusAddress);
+
+    @Select("SELECT id, username, password, nickname, avatar, phone, role, audit_status as status, campus_address " +
+            "FROM sys_user WHERE phone = #{phone} LIMIT 1")
+    User findByPhone(@Param("phone") String phone);
 
     /**
      * 3. 管理员操作：封号 / 解封

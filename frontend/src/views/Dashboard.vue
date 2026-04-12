@@ -112,6 +112,7 @@
 
                 <el-table-column prop="nickname" label="昵称" width="150" />
                 <el-table-column prop="username" label="登录账号" width="150" />
+                <el-table-column prop="phone" label="手机号" width="140" />
                 
                 <el-table-column label="身份角色" width="120" align="center">
                   <template #default="{ row }">

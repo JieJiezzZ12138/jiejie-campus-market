@@ -36,6 +36,10 @@
           <el-input v-model="form.campusAddress" type="textarea" :rows="2" placeholder="例如：东区宿舍楼下 / 图书馆门口" />
         </el-form-item>
 
+        <el-form-item label="手机号" required>
+          <el-input v-model="form.phone" maxlength="20" placeholder="请输入手机号" />
+        </el-form-item>
+
         <el-form-item>
           <el-button type="primary" :loading="saving" @click="handleSave">保存修改</el-button>
         </el-form-item>
@@ -59,7 +63,8 @@ const form = reactive({
   username: '',
   nickname: '',
   avatar: '',
-  campusAddress: ''
+  campusAddress: '',
+  phone: ''
 })
 
 const localToken = localStorage.getItem('token') || ''
@@ -91,6 +96,7 @@ const loadProfile = async () => {
     form.nickname = data.nickname || ''
     form.avatar = data.avatar || ''
     form.campusAddress = data.campusAddress || ''
+    form.phone = data.phone || ''
   } catch (e) {
     console.error(e)
   } finally {
@@ -102,12 +108,16 @@ const handleSave = async () => {
   if (!form.nickname?.trim()) {
     return ElMessage.warning('请填写昵称')
   }
+  if (!form.phone?.trim() || !/^\d{7,20}$/.test(form.phone.trim())) {
+    return ElMessage.warning('请输入正确手机号')
+  }
   saving.value = true
   try {
     const updated = await request.put('/user/profile', {
       nickname: form.nickname.trim(),
       avatar: form.avatar?.trim() || '',
-      campusAddress: form.campusAddress?.trim() || ''
+      campusAddress: form.campusAddress?.trim() || '',
+      phone: form.phone.trim()
     })
     localStorage.setItem('userInfo', JSON.stringify(updated))
     ElMessage.success('已保存')

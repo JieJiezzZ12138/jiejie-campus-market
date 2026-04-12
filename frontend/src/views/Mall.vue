@@ -374,6 +374,13 @@ const handleLogout = () => {
 .action-icon { color: #606266; cursor: pointer; }
 .action-icon:hover { color: #409EFF; }
 .msg-badge :deep(.el-badge__content) { top: 2px; right: 2px; }
+.msg-badge {
+  position: relative;
+  z-index: 10;
+}
+.msg-badge :deep(.el-badge__content) {
+  z-index: 11;
+}
 .mall-main { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
 .banner-carousel { border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
 .banner-content { height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.1); }

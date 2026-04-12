@@ -9,6 +9,7 @@ public class User {
     private String password;
     private String nickname;
     private String avatar;
+    private String phone;
 
     // 身份角色：比如 'ADMIN' (管理员) 或 'USER' (普通学生)
     private String role;
