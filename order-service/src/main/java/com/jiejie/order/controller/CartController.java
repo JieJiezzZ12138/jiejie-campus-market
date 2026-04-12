@@ -3,6 +3,8 @@ package com.jiejie.order.controller;
 import com.jiejie.common.Result;
 import com.jiejie.order.entity.Cart;
 import com.jiejie.order.mapper.CartMapper;
+import com.jiejie.product.entity.Product;
+import com.jiejie.product.mapper.ProductMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,6 +17,9 @@ public class CartController {
 
     @Autowired
     private CartMapper cartMapper;
+
+    @Autowired
+    private ProductMapper productMapper;
 
     /**
      * 1. 查询购物车列表
@@ -39,10 +44,19 @@ public class CartController {
     @PostMapping("/add")
     public Result addToCart(@RequestParam("productId") Long productId, HttpServletRequest request) {
         String currentUsername = (String) request.getAttribute("currentUsername");
+        Long currentUserId = (Long) request.getAttribute("currentUserId");
         if (currentUsername == null || currentUsername.isEmpty()) {
             return Result.error("未获取到登录状态");
         }
         try {
+            Product product = productMapper.selectById(productId);
+            if (product == null) {
+                return Result.error("商品不存在");
+            }
+            if (currentUserId != null && product.getSellerId() != null
+                    && product.getSellerId().longValue() == currentUserId.longValue()) {
+                return Result.error("不能把自己的商品加入购物车");
+            }
             Cart existCart = cartMapper.findExistItem(currentUsername, productId);
             if (existCart != null) {
                 cartMapper.updateQuantity(existCart.getId(), 1);

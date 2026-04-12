@@ -36,6 +36,14 @@ CREATE TABLE IF NOT EXISTS private_message (
   INDEX idx_pm_thread_time (thread_id, create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS chat_thread_read (
+  thread_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  last_read_time DATETIME NOT NULL,
+  PRIMARY KEY (thread_id, user_id),
+  INDEX idx_read_user (user_id, last_read_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS admin_notification (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   order_id BIGINT NULL,

@@ -28,7 +28,11 @@ public interface ChatThreadMapper {
             "CASE WHEN ct.seller_id = #{uid} THEN ct.customer_id ELSE ct.seller_id END AS peerUserId, " +
             "CASE WHEN ct.seller_id = #{uid} THEN uc.nickname ELSE us.nickname END AS peerNickname, " +
             "(SELECT pm.content FROM private_message pm WHERE pm.thread_id = ct.id ORDER BY pm.id DESC LIMIT 1) AS lastPreview, " +
-            "(SELECT MAX(pm.create_time) FROM private_message pm WHERE pm.thread_id = ct.id) AS lastTime " +
+            "(SELECT MAX(pm.create_time) FROM private_message pm WHERE pm.thread_id = ct.id) AS lastTime, " +
+            "(SELECT COUNT(1) FROM private_message pm " +
+            " LEFT JOIN chat_thread_read rr ON rr.thread_id = pm.thread_id AND rr.user_id = #{uid} " +
+            " WHERE pm.thread_id = ct.id AND pm.receiver_id = #{uid} " +
+            " AND (rr.last_read_time IS NULL OR pm.create_time > rr.last_read_time)) AS unreadCount " +
             "FROM chat_thread ct " +
             "JOIN product p ON p.id = ct.product_id " +
             "LEFT JOIN sys_user us ON us.id = ct.seller_id " +

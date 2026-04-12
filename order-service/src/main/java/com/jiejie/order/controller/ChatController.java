@@ -7,6 +7,7 @@ import com.jiejie.order.entity.Order;
 import com.jiejie.order.entity.PrivateMessage;
 import com.jiejie.order.entity.User;
 import com.jiejie.order.mapper.ChatThreadMapper;
+import com.jiejie.order.mapper.ChatThreadReadMapper;
 import com.jiejie.order.mapper.OrderMapper;
 import com.jiejie.order.mapper.PrivateMessageMapper;
 import com.jiejie.order.mapper.UserMapper;
@@ -36,6 +37,9 @@ public class ChatController {
 
     @Autowired
     private PrivateMessageMapper privateMessageMapper;
+
+    @Autowired
+    private ChatThreadReadMapper chatThreadReadMapper;
 
     @Autowired
     private UserMapper userMapper;
@@ -207,7 +211,19 @@ public class ChatController {
             }
         }
         List<PrivateMessage> list = privateMessageMapper.listForThread(threadId, orderId);
+        // 进入会话即视为已读（刷新/轮询也会更新）
+        chatThreadReadMapper.upsert(threadId, uid, new java.util.Date());
         return Result.success(list);
+    }
+
+    @GetMapping("/unread-count")
+    public Result unreadCount(HttpServletRequest request) {
+        Long uid = (Long) request.getAttribute("currentUserId");
+        if (uid == null) {
+            return Result.error("未登录");
+        }
+        int total = chatThreadReadMapper.countUnread(uid);
+        return Result.success(total);
     }
 
     @PostMapping("/send")

@@ -26,9 +26,16 @@
         class="inbox-table"
         @row-click="openThread"
       >
-        <el-table-column label="对方" min-width="120">
+        <el-table-column label="对方" min-width="140">
           <template #default="{ row }">
-            {{ row.peerNickname || '用户' }}
+            <el-badge
+              :value="row.unreadCount"
+              :hidden="!row.unreadCount || Number(row.unreadCount) <= 0"
+              :max="99"
+              class="unread-badge"
+            >
+              <span class="peer-name">{{ row.peerNickname || '用户' }}</span>
+            </el-badge>
           </template>
         </el-table-column>
         <el-table-column prop="productName" label="关联商品" min-width="160" show-overflow-tooltip />
@@ -53,7 +60,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
 import request from '../utils/request'
 
@@ -82,6 +89,10 @@ const openThread = (row) => {
 onMounted(() => {
   loadInbox()
 })
+
+onActivated(() => {
+  loadInbox()
+})
 </script>
 
 <style scoped>
@@ -108,5 +119,13 @@ onMounted(() => {
 }
 .inbox-table :deep(tbody tr) {
   cursor: pointer;
+}
+.unread-badge :deep(.el-badge__content) {
+  top: -2px;
+  right: -6px;
+}
+.peer-name {
+  display: inline-block;
+  padding-right: 6px;
 }
 </style>

@@ -13,4 +13,5 @@ public class ChatInboxItem {
     private String peerNickname;
     private String lastPreview;
     private Date lastTime;
+    private Integer unreadCount;
 }

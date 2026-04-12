@@ -278,8 +278,8 @@ const threadCount = ref(0)
 
 const fetchThreadCount = async () => {
   try {
-    const list = await request.get('/order/chat/inbox')
-    threadCount.value = (list || []).length
+    const n = await request.get('/order/chat/unread-count')
+    threadCount.value = typeof n === 'number' ? n : 0
   } catch {
     threadCount.value = 0
   }
@@ -302,6 +302,10 @@ const fetchCart = async () => {
 }
 
 const addToCart = async (product) => {
+  const me = userInfo.value || {}
+  if (me.id != null && product?.sellerId != null && Number(me.id) === Number(product.sellerId)) {
+    return ElMessage.warning('不能把自己的商品加入购物车')
+  }
   try {
     await request.post(`/cart/add?productId=${product.id}`)
     ElMessage.success(`《${product.name}》已加入购物车！`)
