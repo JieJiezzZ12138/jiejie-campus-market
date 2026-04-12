@@ -26,4 +26,5 @@ public class Product {
     // 连表查询字段
     private String sellerName;
     private String sellerAvatar;
+    private String sellerAddress;
 }

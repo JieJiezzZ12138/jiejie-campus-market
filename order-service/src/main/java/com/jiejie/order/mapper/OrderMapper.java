@@ -20,20 +20,32 @@ public interface OrderMapper {
      * 2. 查询用户的订单列表 (带商品名称和主图)
      * 关联 product 表，这样前端列表能显示“商品名字”，非常重要！
      */
-    @Select("SELECT o.*, p.name as productName, p.image as productImage " +
+    @Select("SELECT o.*, p.name as productName, p.image as productImage, p.seller_id as sellerId " +
             "FROM orders o " +
             "LEFT JOIN product p ON o.product_id = p.id " +
             "WHERE o.buyer_id = #{userId} " +
             "ORDER BY o.create_time DESC")
     List<Order> findByUserId(@Param("userId") Long userId);
 
-    /**
-     * 3. 模拟支付：更新订单状态并记录支付时间
-     * 逻辑：当状态变为 1 (已支付) 时，自动更新 pay_time 为当前时间
-     */
-    @Update("UPDATE orders SET order_status = #{status}, pay_time = NOW() " +
-            "WHERE id = #{id}")
-    int updateStatus(@Param("id") Long id, @Param("status") Integer status);
+    @Select("SELECT o.*, p.name as productName, p.image as productImage, p.seller_id as sellerId " +
+            "FROM orders o " +
+            "JOIN product p ON o.product_id = p.id " +
+            "WHERE p.seller_id = #{sellerId} " +
+            "ORDER BY o.create_time DESC")
+    List<Order> findBySellerId(@Param("sellerId") Long sellerId);
+
+    @Select("SELECT o.*, p.name as productName, p.image as productImage, p.seller_id as sellerId " +
+            "FROM orders o " +
+            "LEFT JOIN product p ON o.product_id = p.id " +
+            "WHERE o.id = #{id}")
+    Order findByIdWithProduct(@Param("id") Long id);
+
+    @Update("UPDATE orders SET order_status = 1, pay_time = NOW() " +
+            "WHERE id = #{id} AND buyer_id = #{buyerId} AND order_status = 0")
+    int markPaid(@Param("id") Long id, @Param("buyerId") Long buyerId);
+
+    @Update("UPDATE orders SET order_status = 2 WHERE id = #{id} AND order_status = 1")
+    int markShipped(@Param("id") Long id);
 
     /**
      * 4. 安全校验：根据订单 ID 和 用户 ID 查询
@@ -47,4 +59,12 @@ public interface OrderMapper {
      */
     @Select("SELECT * FROM orders WHERE order_no = #{orderNo}")
     Order findByOrderNo(@Param("orderNo") String orderNo);
+
+    /** 同一商品、买家最近一笔订单（用于收件箱/会话补全 orderId，合并历史私信） */
+    @Select("SELECT o.*, p.name as productName, p.image as productImage, p.seller_id as sellerId " +
+            "FROM orders o " +
+            "LEFT JOIN product p ON o.product_id = p.id " +
+            "WHERE o.product_id = #{productId} AND o.buyer_id = #{buyerId} " +
+            "ORDER BY o.id DESC LIMIT 1")
+    Order findLatestByProductAndBuyer(@Param("productId") Long productId, @Param("buyerId") Long buyerId);
 }

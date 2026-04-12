@@ -32,8 +32,10 @@ public class JwtInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        // 解析成功，将用户信息存入 Request，供 Controller 使用
-        request.setAttribute("currentUserId", claims.get("userId", Long.class));
+        // 解析成功：userId 在 JWT 里可能是 Integer/Long，统一为 Long，避免与数据库 Long 比较 equals 失败
+        Object rawUserId = claims.get("userId");
+        Long userId = rawUserId == null ? null : ((Number) rawUserId).longValue();
+        request.setAttribute("currentUserId", userId);
         request.setAttribute("currentUsername", claims.get("username", String.class));
 
         return true;

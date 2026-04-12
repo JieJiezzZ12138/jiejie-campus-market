@@ -7,15 +7,12 @@ import java.util.List;
 @Mapper
 public interface ProductMapper {
 
-    /**
-     * 👉 优化版：支持分类筛选 + 关键字搜索
-     * 解决了空字符串判断可能导致的 500 错误
-     */
     @Select("<script>" +
             "SELECT p.id, p.name, p.description, p.category, p.price, p.original_price as originalPrice, " +
             "p.image, p.image_url as imageUrl, p.stock, p.seller_id as sellerId, " +
             "p.audit_status as auditStatus, p.publish_status as publishStatus, p.create_time, " +
-            "u.nickname as sellerName, u.avatar as sellerAvatar " +
+            "u.nickname as sellerName, u.avatar as sellerAvatar, " + // 👉 修复：这里加了一个逗号
+            "u.campus_address as sellerAddress " +
             "FROM product p " +
             "LEFT JOIN sys_user u ON p.seller_id = u.id " +
             "WHERE p.audit_status = 1 AND p.publish_status = 1 AND p.stock > 0 " +
@@ -25,19 +22,14 @@ public interface ProductMapper {
             "</script>")
     List<Product> getActiveProducts(@Param("category") String category, @Param("keyword") String keyword);
 
-    /**
-     * 后台大盘：查出所有商品
-     */
     @Select("SELECT p.id, p.name, p.description, p.category, p.price, p.original_price as originalPrice, " +
             "p.image, p.image_url as imageUrl, p.stock, p.seller_id as sellerId, " +
             "p.audit_status as auditStatus, p.publish_status as publishStatus, p.create_time, " +
-            "u.nickname as sellerName, u.avatar as sellerAvatar " +
+            "u.nickname as sellerName, u.avatar as sellerAvatar, " + // 👉 修复：这里也加了一个逗号
+            "u.campus_address as sellerAddress " +
             "FROM product p LEFT JOIN sys_user u ON p.seller_id = u.id ORDER BY p.create_time DESC")
     List<Product> getAllForAdmin();
 
-    /**
-     * 插入新商品
-     */
     @Insert("INSERT INTO product(name, description, category, price, original_price, image, image_url, stock, seller_id, audit_status, publish_status, create_time) " +
             "VALUES(#{name}, #{description}, #{category}, #{price}, #{originalPrice}, #{image}, #{imageUrl}, #{stock}, #{sellerId}, #{auditStatus}, #{publishStatus}, NOW())")
     @Options(useGeneratedKeys = true, keyProperty = "id")
@@ -60,4 +52,12 @@ public interface ProductMapper {
 
     @Select("SELECT COUNT(*) FROM product WHERE publish_status = 2 OR stock = 0")
     int countSoldOut();
+
+    /** 按主键查询（含已售出/下架），用于私信与订单上下文 */
+    @Select("SELECT p.id, p.name, p.description, p.category, p.price, p.original_price as originalPrice, " +
+            "p.image, p.image_url as imageUrl, p.stock, p.seller_id as sellerId, " +
+            "p.audit_status as auditStatus, p.publish_status as publishStatus, p.create_time, " +
+            "u.nickname as sellerName, u.avatar as sellerAvatar, u.campus_address as sellerAddress " +
+            "FROM product p LEFT JOIN sys_user u ON p.seller_id = u.id WHERE p.id = #{id}")
+    Product selectById(@Param("id") Long id);
 }

@@ -12,9 +12,39 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
-    path: '/orders', // 👈 检查这里！必须有这一行，且字母不能拼错
+    path: '/messages',
+    name: 'MessageInbox',
+    component: () => import('../views/MessageInbox.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/chat/product/:productId',
+    name: 'ProductChat',
+    component: () => import('../views/ChatRoom.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/chat/thread/:threadId',
+    name: 'ThreadChat',
+    component: () => import('../views/ChatRoom.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/orders/:orderId/chat',
+    name: 'OrderChat',
+    component: () => import('../views/ChatRoom.vue'),
+    meta: { requiresAuth: true }
+  },
+  { 
+    path: '/orders',
     name: 'OrderList',
     component: () => import('../views/OrderList.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/profile',
+    name: 'Profile',
+    component: () => import('../views/Profile.vue'),
     meta: { requiresAuth: true }
   },
   { 

@@ -20,4 +20,4 @@ mybatis:
     map-underscore-to-camel-case: true
 
 file:
-    upload-path: /Users/jiejie/Desktop/uploads/ # 改成你电脑上的真实文件夹路径
+    upload-path: /Users/jiejie/Desktop/web/my-system-cloud/pictures/ # 改成你电脑上的真实文件夹路径

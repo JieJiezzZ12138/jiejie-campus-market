@@ -9,8 +9,8 @@
         </div>
         
         <div class="header-right">
-          <el-badge :value="12" class="msg-badge">
-            <el-icon size="22" class="header-icon"><Bell /></el-icon>
+          <el-badge :value="unreadCount" :hidden="unreadCount <= 0" class="msg-badge" :max="99">
+            <el-icon size="22" class="header-icon" @click="openNotifDrawer"><Bell /></el-icon>
           </el-badge>
           <el-dropdown trigger="click">
             <div class="user-profile">
@@ -159,11 +159,84 @@
         </el-main>
       </el-container>
     </el-container>
+
+    <el-drawer v-model="notifDrawerVisible" title="交易反馈通知" size="420px" destroy-on-close>
+      <div class="notif-toolbar">
+        <el-button type="primary" size="small" plain :disabled="unreadCount === 0" @click="handleMarkAllRead">
+          全部标记已读
+        </el-button>
+        <el-button size="small" :icon="Refresh" @click="loadNotifications">刷新</el-button>
+      </div>
+      <p class="notif-hint">仅展示用户提交的「纠纷/求助」反馈。点击一条可查看订单与双方私信记录。</p>
+      <el-empty v-if="!notifLoading && notifications.length === 0" description="暂无反馈" />
+      <div v-loading="notifLoading" class="notif-list">
+        <div
+          v-for="n in notifications"
+          :key="n.id"
+          class="notif-item"
+          :class="{ unread: Number(n.isRead) === 0 }"
+          @click="handleNotifClick(n)"
+        >
+          <p class="notif-preview">{{ stripFeedbackPreview(n.preview) }}</p>
+          <p class="notif-meta">
+            <span v-if="n.orderId">订单 #{{ n.orderId }}</span>
+            <span v-else>无订单号</span>
+            · {{ formatNotifTime(n.createTime) }}
+          </p>
+        </div>
+      </div>
+    </el-drawer>
+
+    <el-drawer v-model="feedbackDetailVisible" title="订单与聊天记录" size="560px" destroy-on-close>
+      <div v-loading="fbLoading" class="fb-detail">
+        <template v-if="fbData && fbData.order">
+          <el-descriptions title="订单信息" :column="1" border size="small">
+            <el-descriptions-item label="订单号">{{ fbData.order.orderNo || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="商品">{{ fbData.order.productName || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="金额">￥{{ fbData.order.totalAmount }}</el-descriptions-item>
+            <el-descriptions-item label="状态">{{ orderStatusLabel(fbData.order.orderStatus) }}</el-descriptions-item>
+            <el-descriptions-item label="买家 ID">{{ fbData.order.buyerId }}</el-descriptions-item>
+            <el-descriptions-item label="卖家 ID">{{ fbData.order.sellerId }}</el-descriptions-item>
+          </el-descriptions>
+
+          <h4 class="fb-section-title">用户提交的反馈</h4>
+          <el-timeline v-if="(fbData.feedbacks || []).length">
+            <el-timeline-item
+              v-for="f in fbData.feedbacks"
+              :key="f.id"
+              :timestamp="f.createTime ? new Date(f.createTime).toLocaleString() : ''"
+              placement="top"
+            >
+              <p class="fb-meta">用户 ID {{ f.userId }}</p>
+              <p class="fb-content">{{ f.content }}</p>
+            </el-timeline-item>
+          </el-timeline>
+          <el-empty v-else description="无反馈记录" />
+
+          <h4 class="fb-section-title">买卖双方私信（仅此处对管理员可见）</h4>
+          <div v-if="(fbData.messages || []).length" class="admin-chat">
+            <div
+              v-for="m in fbData.messages"
+              :key="m.id"
+              class="admin-chat-row"
+              :class="isBuyerMessage(m) ? 'from-buyer' : 'from-seller'"
+            >
+              <div class="admin-chat-bubble">
+                <span class="admin-chat-role">{{ isBuyerMessage(m) ? '买家' : '卖家' }}</span>
+                <p>{{ m.content }}</p>
+                <span class="admin-chat-time">{{ m.createTime ? new Date(m.createTime).toLocaleString() : '' }}</span>
+              </div>
+            </div>
+          </div>
+          <el-empty v-else description="暂无私信记录" />
+        </template>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { DataBoard, Refresh, Picture, Bell, User, Goods } from '@element-plus/icons-vue'
@@ -171,6 +244,96 @@ import request from '../utils/request'
 
 const router = useRouter()
 const userInfo = ref(JSON.parse(localStorage.getItem('userInfo') || '{}'))
+
+const notifDrawerVisible = ref(false)
+const notifications = ref([])
+const unreadCount = ref(0)
+const notifLoading = ref(false)
+let notifPollTimer = null
+
+const formatNotifTime = (t) => (t ? new Date(t).toLocaleString() : '-')
+
+const stripFeedbackPreview = (p) => {
+  if (!p) return ''
+  return String(p).replace(/^\[交易反馈\]\s*/, '')
+}
+
+const feedbackDetailVisible = ref(false)
+const fbLoading = ref(false)
+const fbData = ref(null)
+
+const orderStatusLabel = (s) => {
+  if (s === 0) return '待支付'
+  if (s === 1) return '已支付 / 待发货'
+  if (s === 2) return '已发货'
+  return String(s ?? '-')
+}
+
+const isBuyerMessage = (m) => Number(m.senderId) === Number(fbData.value?.order?.buyerId)
+
+const fetchUnreadCount = async () => {
+  try {
+    const n = await request.get('/user/admin/notifications/unread-count')
+    unreadCount.value = typeof n === 'number' ? n : 0
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const loadNotifications = async () => {
+  notifLoading.value = true
+  try {
+    const list = await request.get('/user/admin/notifications', { params: { limit: 80 } })
+    notifications.value = list || []
+  } catch (e) {
+    console.error(e)
+  } finally {
+    notifLoading.value = false
+  }
+}
+
+const openNotifDrawer = async () => {
+  notifDrawerVisible.value = true
+  await loadNotifications()
+  await fetchUnreadCount()
+}
+
+const handleNotifClick = async (n) => {
+  if (Number(n.isRead) === 0) {
+    try {
+      await request.post(`/user/admin/notifications/read?id=${n.id}`)
+      n.isRead = 1
+      await fetchUnreadCount()
+    } catch (e) {
+      console.error(e)
+    }
+  }
+  if (!n.orderId) {
+    ElMessage.warning('该通知未关联订单')
+    return
+  }
+  feedbackDetailVisible.value = true
+  fbLoading.value = true
+  fbData.value = null
+  try {
+    fbData.value = await request.get('/order/admin/feedback-order-view', { params: { orderId: n.orderId } })
+  } catch (e) {
+    console.error(e)
+    feedbackDetailVisible.value = false
+  } finally {
+    fbLoading.value = false
+  }
+}
+
+const handleMarkAllRead = async () => {
+  try {
+    await request.post('/user/admin/notifications/read-all')
+    notifications.value.forEach((x) => { x.isRead = 1 })
+    await fetchUnreadCount()
+  } catch (e) {
+    console.error(e)
+  }
+}
 
 const activeMenu = ref('products')
 const handleMenuSelect = (index) => {
@@ -291,6 +454,12 @@ const handleUserRole = async (row, targetRole) => {
 
 onMounted(() => {
   fetchAdminProducts()
+  fetchUnreadCount()
+  notifPollTimer = setInterval(fetchUnreadCount, 8000)
+})
+
+onBeforeUnmount(() => {
+  if (notifPollTimer) clearInterval(notifPollTimer)
 })
 </script>
 
@@ -317,4 +486,63 @@ onMounted(() => {
 /* 主内容区 */
 .admin-main { padding: 20px; height: calc(100vh - 60px); overflow-y: auto; }
 .card-header { display: flex; justify-content: space-between; align-items: center; font-size: 16px; font-weight: bold; color: #333; }
+
+.notif-toolbar { display: flex; gap: 10px; margin-bottom: 14px; }
+.notif-list { display: flex; flex-direction: column; gap: 10px; min-height: 120px; }
+.notif-item {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #f5f7fa;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: border-color 0.2s, background 0.2s;
+}
+.notif-item.unread {
+  background: #ecf5ff;
+  border-color: #b3d8ff;
+}
+.notif-item:hover { border-color: #dcdfe6; }
+.notif-preview { margin: 0 0 8px; font-size: 14px; color: #303133; line-height: 1.5; word-break: break-word; }
+.notif-hint { font-size: 12px; color: #909399; margin: 0 0 12px; line-height: 1.5; }
+.fb-detail { min-height: 120px; }
+.fb-section-title { margin: 20px 0 12px; font-size: 15px; color: #303133; }
+.fb-meta { margin: 0 0 4px; font-size: 12px; color: #909399; }
+.fb-content { margin: 0; white-space: pre-wrap; word-break: break-word; }
+.admin-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 0;
+  max-height: 360px;
+  overflow-y: auto;
+}
+.admin-chat-row {
+  display: flex;
+  max-width: 92%;
+}
+.admin-chat-row.from-buyer {
+  align-self: flex-start;
+  justify-content: flex-start;
+}
+.admin-chat-row.from-seller {
+  align-self: flex-end;
+  justify-content: flex-end;
+}
+.admin-chat-bubble {
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.from-buyer .admin-chat-bubble {
+  background: #ecf5ff;
+  border: 1px solid #d9ecff;
+}
+.from-seller .admin-chat-bubble {
+  background: #fdf6ec;
+  border: 1px solid #faecd8;
+}
+.admin-chat-role { font-weight: 600; color: #606266; margin-right: 6px; }
+.admin-chat-time { display: block; font-size: 11px; color: #c0c4cc; margin-top: 6px; }
+.notif-meta { margin: 0; font-size: 12px; color: #909399; }
 </style>

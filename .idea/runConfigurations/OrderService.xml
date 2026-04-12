@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="OrderService" type="SpringBootApplication" factoryName="Spring Boot">
+    <option name="MAIN_CLASS_NAME" value="com.jiejie.order.OrderApplication" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/order-service" />
+    <module name="order-service" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

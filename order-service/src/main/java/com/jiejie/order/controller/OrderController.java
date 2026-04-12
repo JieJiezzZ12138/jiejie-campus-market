@@ -2,9 +2,19 @@ package com.jiejie.order.controller;
 
 import com.jiejie.common.Result;
 import com.jiejie.order.entity.Cart;
+import com.jiejie.order.entity.AdminNotification;
+import com.jiejie.order.entity.ChatThread;
 import com.jiejie.order.entity.Order;
+import com.jiejie.order.entity.OrderFeedback;
+import com.jiejie.order.entity.PrivateMessage;
+import com.jiejie.order.entity.User;
+import com.jiejie.order.mapper.AdminNotificationMapper;
 import com.jiejie.order.mapper.CartMapper;
+import com.jiejie.order.mapper.ChatThreadMapper;
+import com.jiejie.order.mapper.OrderFeedbackMapper;
 import com.jiejie.order.mapper.OrderMapper;
+import com.jiejie.order.mapper.PrivateMessageMapper;
+import com.jiejie.order.mapper.UserMapper;
 import com.jiejie.product.mapper.ProductMapper;
 import jakarta.servlet.http.HttpServletRequest; // 👈 必须引入请求对象，用来拿 Token 里的身份
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,8 +22,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+
+import org.springframework.util.StringUtils;
 
 @RestController
 @RequestMapping("/order")
@@ -27,6 +41,21 @@ public class OrderController {
 
     @Autowired
     private ProductMapper productMapper;
+
+    @Autowired
+    private OrderFeedbackMapper orderFeedbackMapper;
+
+    @Autowired
+    private AdminNotificationMapper adminNotificationMapper;
+
+    @Autowired
+    private UserMapper userMapper;
+
+    @Autowired
+    private ChatThreadMapper chatThreadMapper;
+
+    @Autowired
+    private PrivateMessageMapper privateMessageMapper;
 
     /**
      * 1. 马上结算接口 (彻底告别参数伪造！)
@@ -85,26 +114,50 @@ public class OrderController {
     }
 
     /**
+     * 订单详情（买卖双方可见，用于私信页标题等）
+     */
+    @GetMapping("/detail")
+    public Result orderDetail(HttpServletRequest request, @RequestParam("orderId") Long orderId) {
+        Long currentUserId = (Long) request.getAttribute("currentUserId");
+        if (currentUserId == null) {
+            return Result.error("未获取到登录状态");
+        }
+        Order o = orderMapper.findByIdWithProduct(orderId);
+        if (o == null) {
+            return Result.error("订单不存在");
+        }
+        if (!currentUserId.equals(o.getBuyerId())
+                && (o.getSellerId() == null || !currentUserId.equals(o.getSellerId()))) {
+            return Result.error("无权查看该订单");
+        }
+        return Result.success(o);
+    }
+
+    /**
      * 2. 查询我的订单 (安全升级版)
      */
     @GetMapping("/list")
-    public Result getOrderList(HttpServletRequest request) {
+    public Result getOrderList(HttpServletRequest request,
+                               @RequestParam(value = "scope", defaultValue = "buyer") String scope) {
         Long currentUserId = (Long) request.getAttribute("currentUserId");
         if (currentUserId == null) {
             return Result.error("未获取到登录状态");
         }
 
-        System.out.println("查询订单列表，安全用户ID: " + currentUserId);
+        System.out.println("查询订单列表，安全用户ID: " + currentUserId + ", scope=" + scope);
 
-        // 👉 核心修复：用真实的用户 ID 去查他自己的订单
-        List<Order> orders = orderMapper.findByUserId(currentUserId);
+        List<Order> orders;
+        if ("seller".equalsIgnoreCase(scope)) {
+            orders = orderMapper.findBySellerId(currentUserId);
+        } else {
+            orders = orderMapper.findByUserId(currentUserId);
+        }
 
         return Result.success(orders);
     }
 
     /**
-     * 3. 【全新】模拟支付接口
-     * 真实场景下这里会对接支付宝/微信支付接口，咱们这里先直接更新数据库状态
+     * 3. 模拟支付：仅买家本人、待支付订单可支付
      */
     @PostMapping("/pay")
     public Result payOrder(HttpServletRequest request, @RequestParam("orderId") Long orderId) {
@@ -113,12 +166,119 @@ public class OrderController {
             return Result.error("请先登录后再支付");
         }
 
-        try {
-            // 将订单状态更新为 1 (1 代表已支付/待发货)
-            orderMapper.updateStatus(orderId, 1);
-            return Result.success("支付成功！卖家将尽快为您发货。");
-        } catch (Exception e) {
-            return Result.error("支付系统异常：" + e.getMessage());
+        Order owned = orderMapper.findByIdAndUser(orderId, currentUserId);
+        if (owned == null) {
+            return Result.error("订单不存在或不属于当前用户");
         }
+        if (owned.getOrderStatus() != null && owned.getOrderStatus() != 0) {
+            return Result.error("订单已支付或状态异常");
+        }
+        int n = orderMapper.markPaid(orderId, currentUserId);
+        if (n == 0) {
+            return Result.error("支付失败，请刷新后重试");
+        }
+        return Result.success("支付成功！卖家将尽快为您发货。");
+    }
+
+    /**
+     * 4. 卖家发货：已支付(待发货) → 已发货
+     */
+    @PostMapping("/ship")
+    public Result shipOrder(HttpServletRequest request, @RequestParam("orderId") Long orderId) {
+        Long currentUserId = (Long) request.getAttribute("currentUserId");
+        if (currentUserId == null) {
+            return Result.error("请先登录");
+        }
+        Order o = orderMapper.findByIdWithProduct(orderId);
+        if (o == null) {
+            return Result.error("订单不存在");
+        }
+        if (o.getSellerId() == null || !currentUserId.equals(o.getSellerId())) {
+            return Result.error("只有商品卖家可以发货");
+        }
+        if (o.getOrderStatus() == null || o.getOrderStatus() != 1) {
+            return Result.error("当前订单状态不可发货（需买家已支付）");
+        }
+        int n = orderMapper.markShipped(orderId);
+        if (n == 0) {
+            return Result.error("发货失败，请重试");
+        }
+        return Result.success("已标记发货");
+    }
+
+    /**
+     * 买卖双方就订单问题提交反馈，通知管理员介入
+     */
+    @PostMapping("/feedback")
+    public Result submitFeedback(HttpServletRequest request, @RequestBody Map<String, Object> body) {
+        Long currentUserId = (Long) request.getAttribute("currentUserId");
+        if (currentUserId == null) {
+            return Result.error("请先登录");
+        }
+        Object oid = body.get("orderId");
+        String content = body.get("content") != null ? String.valueOf(body.get("content")).trim() : "";
+        if (oid == null) {
+            return Result.error("缺少 orderId");
+        }
+        if (!StringUtils.hasText(content)) {
+            return Result.error("请填写反馈内容");
+        }
+        if (content.length() > 2000) {
+            return Result.error("内容过长");
+        }
+        Long orderId = Long.valueOf(oid.toString());
+        Order o = orderMapper.findByIdWithProduct(orderId);
+        if (o == null) {
+            return Result.error("订单不存在");
+        }
+        if (!currentUserId.equals(o.getBuyerId()) && !currentUserId.equals(o.getSellerId())) {
+            return Result.error("仅买卖双方可提交交易反馈");
+        }
+        orderFeedbackMapper.insert(orderId, currentUserId, content);
+
+        AdminNotification n = new AdminNotification();
+        n.setOrderId(orderId);
+        n.setSenderId(currentUserId);
+        String head = o.getOrderNo() != null ? o.getOrderNo() : ("#" + orderId);
+        String tail = content.length() > 120 ? content.substring(0, 120) + "…" : content;
+        n.setPreview("[交易反馈] 订单 " + head + "：" + tail);
+        adminNotificationMapper.insert(n);
+
+        return Result.success("已提交管理员，请耐心等待处理");
+    }
+
+    /**
+     * 管理员：仅当订单存在用户「交易反馈」时，可查看该订单详情及买卖双方完整私信（不在其它入口暴露）
+     */
+    @GetMapping("/admin/feedback-order-view")
+    public Result adminFeedbackOrderView(HttpServletRequest request, @RequestParam("orderId") Long orderId) {
+        Long uid = (Long) request.getAttribute("currentUserId");
+        if (uid == null) {
+            return Result.error("未登录");
+        }
+        User admin = userMapper.findById(uid);
+        if (admin == null || !"ADMIN".equals(admin.getRole())) {
+            return Result.error("需要管理员权限");
+        }
+        Order o = orderMapper.findByIdWithProduct(orderId);
+        if (o == null) {
+            return Result.error("订单不存在");
+        }
+        List<OrderFeedback> feedbacks = orderFeedbackMapper.listByOrderId(orderId);
+        if (feedbacks == null || feedbacks.isEmpty()) {
+            return Result.error("该订单暂无用户反馈记录，无权查看私信");
+        }
+        ChatThread thread = chatThreadMapper.findByProductAndCustomer(o.getProductId(), o.getBuyerId());
+        List<PrivateMessage> messages;
+        if (thread != null) {
+            messages = privateMessageMapper.listForThread(thread.getId(), orderId);
+        } else {
+            messages = privateMessageMapper.listByOrderId(orderId);
+        }
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("order", o);
+        data.put("feedbacks", feedbacks);
+        data.put("messages", messages != null ? messages : List.of());
+        return Result.success(data);
     }
 }

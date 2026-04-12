@@ -15,4 +15,5 @@ public class User {
 
     // 账号状态：1-正常，0-封禁
     private Integer status;
+    private String campusAddress;
 }

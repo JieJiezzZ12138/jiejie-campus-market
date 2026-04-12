@@ -16,6 +16,10 @@
         <div class="user-actions">
           <el-button type="primary" plain :icon="Plus" round @click="publishVisible = true">发布闲置</el-button>
           
+          <el-badge :value="threadCount" :hidden="threadCount === 0" :max="99" class="msg-badge">
+            <el-icon size="24" class="action-icon" title="我的私信" @click="router.push('/messages')"><ChatDotRound /></el-icon>
+          </el-badge>
+
           <el-badge :value="cartList.length" class="cart-badge" :hidden="cartList.length === 0">
             <el-icon size="24" class="action-icon" @click="cartVisible = true"><ShoppingCart /></el-icon>
           </el-badge>
@@ -28,6 +32,8 @@
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item @click="router.push('/orders')">我的订单</el-dropdown-item>
+                <el-dropdown-item @click="router.push('/messages')">我的私信</el-dropdown-item>
+                <el-dropdown-item @click="router.push('/profile')">个人资料</el-dropdown-item>
                 <el-dropdown-item v-if="userInfo.role === 'ADMIN'" @click="router.push('/admin')">进入后台</el-dropdown-item>
                 <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
               </el-dropdown-menu>
@@ -74,12 +80,20 @@
                 <span class="original-price" v-if="item.originalPrice > 0">原价 ¥{{ item.originalPrice }}</span>
               </div>
               
+              <div class="location-tag">
+                <el-icon><Location /></el-icon>
+                <span>{{ item.sellerAddress || '校内面交' }}</span>
+              </div>
+              
               <div class="seller-info">
                 <div class="seller-tag">
                   <el-avatar :size="20" :src="item.sellerAvatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'" />
                   <span class="seller-name">{{ item.sellerName || '匿名卖家' }}</span>
                 </div>
-                <el-button type="primary" size="small" circle :icon="ShoppingCart" @click.stop="addToCart(item)" />
+                <div class="seller-actions">
+                  <el-button type="success" size="small" plain @click.stop="contactSeller(item)">联系卖家</el-button>
+                  <el-button type="primary" size="small" circle :icon="ShoppingCart" @click.stop="addToCart(item)" />
+                </div>
               </div>
             </div>
           </el-card>
@@ -155,14 +169,35 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, computed, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ShoppingBag, Search, ShoppingCart, Plus, Picture } from '@element-plus/icons-vue'
+// 👉 引入 Location 图标
+import { ShoppingBag, Search, ShoppingCart, Plus, Picture, Location, ChatDotRound } from '@element-plus/icons-vue'
 import request from '../utils/request' 
 
 const router = useRouter()
+
+const contactSeller = (item) => {
+  const me = JSON.parse(localStorage.getItem('userInfo') || '{}')
+  if (me.id != null && item.sellerId != null && Number(me.id) === Number(item.sellerId)) {
+    ElMessage.info('这是您自己发布的商品')
+    return
+  }
+  router.push(`/chat/product/${item.id}`)
+}
+const route = useRoute()
 const userInfo = ref(JSON.parse(localStorage.getItem('userInfo') || '{}'))
+
+watch(
+  () => route.path,
+  (p) => {
+    if (p === '/') {
+      userInfo.value = JSON.parse(localStorage.getItem('userInfo') || '{}')
+      fetchThreadCount()
+    }
+  }
+)
 
 const searchQuery = ref('')
 const activeCategory = ref('')
@@ -181,7 +216,6 @@ const getImageUrl = (url) => {
   return 'http://localhost:8082' + url;
 }
 
-// 👉 真正发请求，把分类和关键字传给后端
 const handleSearch = () => fetchProducts()
 
 const fetchProducts = async () => {
@@ -189,7 +223,7 @@ const fetchProducts = async () => {
     const res = await request.get('/product/list', { 
       params: { 
         keyword: searchQuery.value,
-        category: activeCategory.value // 传入分类
+        category: activeCategory.value 
       } 
     })
     const colors = ['#ffb8b8', '#b8e9ff', '#b8ffc9', '#ffdfb8', '#e1b8ff', '#b8fff4']
@@ -237,6 +271,17 @@ const submitPublish = async () => {
     console.error("发布失败", error)
   } finally {
     publishLoading.value = false
+  }
+}
+
+const threadCount = ref(0)
+
+const fetchThreadCount = async () => {
+  try {
+    const list = await request.get('/order/chat/inbox')
+    threadCount.value = (list || []).length
+  } catch {
+    threadCount.value = 0
   }
 }
 
@@ -300,7 +345,8 @@ const handleCheckout = async () => {
 
 onMounted(() => {
   fetchProducts()
-  fetchCart() 
+  fetchCart()
+  fetchThreadCount()
 })
 
 const handleLogout = () => {
@@ -312,7 +358,6 @@ const handleLogout = () => {
 </script>
 
 <style scoped>
-/* 原样保留你的样式 */
 .mall-container { min-height: 100vh; background-color: #f4f4f4; }
 .mall-header { background-color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.06); position: sticky; top: 0; z-index: 100; padding: 0; }
 .header-content { max-width: 1200px; margin: 0 auto; height: 60px; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; }
@@ -324,6 +369,7 @@ const handleLogout = () => {
 .nickname { font-size: 14px; color: #606266; }
 .action-icon { color: #606266; cursor: pointer; }
 .action-icon:hover { color: #409EFF; }
+.msg-badge :deep(.el-badge__content) { top: 2px; right: 2px; }
 .mall-main { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
 .banner-carousel { border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
 .banner-content { height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.1); }
@@ -341,9 +387,14 @@ const handleLogout = () => {
 .price-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; margin-top: auto;}
 .price { font-size: 20px; color: #f56c6c; font-weight: bold; }
 .original-price { font-size: 12px; color: #999; text-decoration: line-through; }
-.seller-info { border-top: 1px solid #f5f5f5; padding-top: 10px; display: flex; justify-content: space-between; align-items: center; }
-.seller-tag { display: flex; align-items: center; gap: 6px; }
-.seller-name { font-size: 12px; color: #666; }
+
+/* 👉 新增的面交地址样式 */
+.location-tag { font-size: 12px; color: #909399; margin-bottom: 8px; display: flex; align-items: center; gap: 4px; }
+
+.seller-info { border-top: 1px solid #f5f5f5; padding-top: 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.seller-tag { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; }
+.seller-name { font-size: 12px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.seller-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .empty-cart { text-align: center; color: #999; margin-top: 80px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .cart-list { display: flex; flex-direction: column; height: 100%; }
 .cart-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid #eee; gap: 15px; }
