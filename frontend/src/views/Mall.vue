@@ -26,7 +26,15 @@
           
           <el-dropdown trigger="click">
             <div class="user-profile">
-              <el-avatar :size="32" :src="userInfo.avatar || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
+              <el-badge
+                :value="orderNoticeTotal"
+                :hidden="orderNoticeTotal === 0"
+                :max="99"
+                class="avatar-badge"
+                :offset="[10, -4]"
+              >
+                <el-avatar :size="32" :src="userInfo.avatar || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
+              </el-badge>
               <span class="nickname">{{ userInfo.nickname || '同学' }}</span>
             </div>
             <template #dropdown>
@@ -169,7 +177,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, onBeforeUnmount, onActivated } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 // 👉 引入 Location 图标
@@ -195,6 +203,7 @@ watch(
     if (p === '/') {
       userInfo.value = JSON.parse(localStorage.getItem('userInfo') || '{}')
       fetchThreadCount()
+      fetchOrderNoticeCount()
     }
   }
 )
@@ -285,6 +294,27 @@ const fetchThreadCount = async () => {
   }
 }
 
+const orderNotice = ref({ buyer: 0, seller: 0, total: 0 })
+const orderNoticeTotal = computed(() => Number(orderNotice.value?.total || 0))
+
+const fetchOrderNoticeCount = async () => {
+  try {
+    const res = await request.get('/order/notice/unread-count')
+    orderNotice.value = res || { buyer: 0, seller: 0, total: 0 }
+  } catch (e) {
+    console.error(e)
+    orderNotice.value = { buyer: 0, seller: 0, total: 0 }
+  }
+}
+
+const handleOrderNoticeEvent = (e) => {
+  if (e?.detail) {
+    orderNotice.value = e.detail
+  } else {
+    fetchOrderNoticeCount()
+  }
+}
+
 const cartVisible = ref(false)
 const cartList = ref([])
 
@@ -339,6 +369,7 @@ const handleCheckout = async () => {
     cartVisible.value = false
     fetchCart()      
     fetchProducts()
+    fetchOrderNoticeCount()
     router.push('/orders')
   } catch (error) {
     console.error("结算失败", error)
@@ -351,10 +382,24 @@ onMounted(() => {
   fetchProducts()
   fetchCart()
   fetchThreadCount()
+  fetchOrderNoticeCount()
+  window.addEventListener('order-notice-count', handleOrderNoticeEvent)
+})
+
+onActivated(() => {
+  fetchOrderNoticeCount()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('order-notice-count', handleOrderNoticeEvent)
 })
 
 const handleLogout = () => {
-  ElMessageBox.confirm('确定要退出账号吗？', '提示', { type: 'warning' }).then(() => {
+  ElMessageBox.confirm('确定要退出账号吗？', '提示', {
+    type: 'warning',
+    confirmButtonText: '确定',
+    cancelButtonText: '取消'
+  }).then(() => {
     localStorage.clear() 
     router.push('/login')
   }).catch(() => {})
@@ -380,6 +425,19 @@ const handleLogout = () => {
 }
 .msg-badge :deep(.el-badge__content) {
   z-index: 11;
+}
+.avatar-badge {
+  position: relative;
+  z-index: 12;
+}
+.avatar-badge :deep(.el-badge__content) {
+  transform: translate(6px, -6px);
+  min-width: 12px;
+  height: 12px;
+  line-height: 12px;
+  padding: 0 3px;
+  font-size: 9px;
+  z-index: 13;
 }
 .mall-main { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
 .banner-carousel { border-radius: 12px; overflow: hidden; margin-bottom: 20px; }

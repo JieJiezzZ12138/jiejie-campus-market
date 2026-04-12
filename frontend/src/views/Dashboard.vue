@@ -344,7 +344,11 @@ const handleMenuSelect = (index) => {
 }
 
 const handleLogout = () => {
-  ElMessageBox.confirm('确定要退出管理员后台吗？', '提示', { type: 'warning' }).then(() => {
+  ElMessageBox.confirm('确定要退出管理员后台吗？', '提示', {
+    type: 'warning',
+    confirmButtonText: '确定',
+    cancelButtonText: '取消'
+  }).then(() => {
     localStorage.clear() 
     router.push('/login')
     ElMessage.success('已退出登录')

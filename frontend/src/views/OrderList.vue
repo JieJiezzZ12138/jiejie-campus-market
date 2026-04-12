@@ -15,16 +15,46 @@
           <div class="header-right">
             <el-button type="primary" link @click="router.push('/profile')">个人资料</el-button>
             <el-button type="primary" link @click="fetchOrders">刷新列表</el-button>
+            <el-badge
+              :value="currentScopeNoticeCount"
+              :hidden="currentScopeNoticeCount === 0"
+              :max="99"
+              class="order-notice-badge"
+            >
+              <el-button type="primary" link @click="openNoticeDrawer">订单通知</el-button>
+            </el-badge>
           </div>
         </div>
       </template>
 
       <el-tabs v-model="orderScope" class="order-tabs" @tab-change="onTabChange">
-        <el-tab-pane label="我买到的" name="buyer" />
-        <el-tab-pane label="我卖出的（待发货等）" name="seller" />
+        <el-tab-pane name="buyer">
+          <template #label>
+            <el-badge
+              :value="noticeCounts.buyer"
+              :hidden="noticeCounts.buyer === 0"
+              :max="99"
+              class="tab-badge"
+            >
+              <span>我买到的</span>
+            </el-badge>
+          </template>
+        </el-tab-pane>
+        <el-tab-pane name="seller">
+          <template #label>
+            <el-badge
+              :value="noticeCounts.seller"
+              :hidden="noticeCounts.seller === 0"
+              :max="99"
+              class="tab-badge"
+            >
+              <span>我卖出的（待发货等）</span>
+            </el-badge>
+          </template>
+        </el-tab-pane>
       </el-tabs>
 
-      <el-table :data="orderList" v-loading="loading" style="width: 100%" border stripe>
+      <el-table :data="orderList" v-loading="loading" style="width: 100%" border stripe :row-class-name="orderRowClass">
         <el-table-column label="订单编号" prop="orderNo" width="180" />
 
         <el-table-column label="商品信息">
@@ -163,14 +193,107 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <el-drawer v-model="noticeDrawerVisible" title="订单通知" size="480px" destroy-on-close>
+      <div class="notice-actions">
+        <el-button size="small" :icon="Refresh" @click="fetchNoticeList">刷新</el-button>
+        <el-select v-model="noticeTypeFilter" size="small" class="notice-filter" placeholder="筛选类型">
+          <el-option v-for="opt in noticeTypeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+        </el-select>
+        <span class="notice-count">未读 {{ currentScopeNoticeCount }}</span>
+      </div>
+      <el-empty v-if="!noticeLoading && noticeList.length === 0" description="暂无通知" />
+      <el-table
+        v-else
+        v-loading="noticeLoading"
+        :data="filteredNoticeList"
+        size="small"
+        style="width: 100%"
+        :row-class-name="noticeRowClass"
+      >
+        <el-table-column label="时间" width="160">
+          <template #default="{ row }">
+            {{ row.createTime ? new Date(row.createTime).toLocaleString() : '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="事件" min-width="140">
+          <template #default="{ row }">
+            {{ noticeText(row) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="订单" min-width="120">
+          <template #default="{ row }">
+            <div class="notice-order">
+              <div class="order-no">{{ row.orderNo || ('#' + row.orderId) }}</div>
+              <div class="order-product">{{ row.productName || '商品' }}</div>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="170" align="center">
+          <template #default="{ row }">
+            <el-space size="small">
+              <el-button type="primary" link size="small" @click="openOrderDetail(row)">订单详情</el-button>
+              <el-button type="primary" link size="small" @click="openOrderChat(row)">私信</el-button>
+              <el-button
+                v-if="Number(row.isRead) === 0 && canManualRead(row)"
+                type="primary"
+                link
+                size="small"
+                @click="markNoticeRead(row)"
+              >
+                已读
+              </el-button>
+              <span v-else-if="Number(row.isRead) === 1" class="read-flag">已读</span>
+            </el-space>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-drawer>
+
+    <el-dialog v-model="orderDetailVisible" title="订单详情" width="620px" destroy-on-close>
+      <el-skeleton v-if="orderDetailLoading" :rows="6" animated />
+      <el-descriptions v-else-if="orderDetail" :column="2" border>
+        <el-descriptions-item label="订单号">
+          {{ orderDetail.orderNo || ('#' + orderDetail.id) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="状态">
+          {{ statusText(orderDetail.orderStatus) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="商品">
+          {{ orderDetail.productName || '商品' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="金额">
+          ￥{{ orderDetail.totalAmount }}
+        </el-descriptions-item>
+        <el-descriptions-item label="买家">
+          {{ orderDetail.buyerNickname || '买家' }} / {{ orderDetail.buyerPhone || orderDetail.buyerUsername || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="卖家">
+          {{ orderDetail.sellerNickname || '卖家' }} / {{ orderDetail.sellerPhone || orderDetail.sellerUsername || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="买家地址">
+          {{ orderDetail.buyerAddress || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="卖家地址">
+          {{ orderDetail.sellerAddress || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="下单时间">
+          {{ orderDetail.createTime ? new Date(orderDetail.createTime).toLocaleString() : '-' }}
+        </el-descriptions-item>
+      </el-descriptions>
+      <template #footer>
+        <el-button @click="orderDetailVisible = false">关闭</el-button>
+        <el-button type="primary" @click="orderDetailChat">私信沟通</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, nextTick, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Picture, Wallet, ArrowLeft } from '@element-plus/icons-vue'
+import { Picture, Wallet, ArrowLeft, Refresh } from '@element-plus/icons-vue'
 import request from '../utils/request'
 
 const router = useRouter()
@@ -182,6 +305,35 @@ const currentOrder = ref({})
 const orderScope = ref('buyer')
 const shipLoadingId = ref(null)
 const receiveLoadingId = ref(null)
+const noticeCounts = ref({ buyer: 0, seller: 0, total: 0 })
+const noticeDrawerVisible = ref(false)
+const noticeList = ref([])
+const noticeLoading = ref(false)
+const orderDetailVisible = ref(false)
+const orderDetailLoading = ref(false)
+const orderDetail = ref(null)
+const noticeTypeFilter = ref('ALL')
+const noticeTypeOptions = [
+  { label: '全部', value: 'ALL' },
+  { label: '待付款', value: 'PAY_PENDING' },
+  { label: '新订单', value: 'NEW_ORDER' },
+  { label: '已付款', value: 'PAID' },
+  { label: '已发货', value: 'SHIPPED' },
+  { label: '已收货', value: 'RECEIVED' }
+]
+const highlightOrderId = ref(null)
+let highlightTimer = null
+
+const currentScopeNoticeCount = computed(() => {
+  return orderScope.value === 'seller'
+    ? Number(noticeCounts.value?.seller || 0)
+    : Number(noticeCounts.value?.buyer || 0)
+})
+
+const filteredNoticeList = computed(() => {
+  if (noticeTypeFilter.value === 'ALL') return noticeList.value
+  return noticeList.value.filter((n) => n.noticeType === noticeTypeFilter.value)
+})
 
 const feedbackVisible = ref(false)
 const feedbackOrder = ref(null)
@@ -209,11 +361,28 @@ const fetchOrders = async () => {
   try {
     const res = await request.get('/order/list', { params: { scope: orderScope.value } })
     orderList.value = res || []
+    if (highlightOrderId.value) {
+      await nextTick()
+      scrollToOrder(highlightOrderId.value)
+    }
   } catch (error) {
     console.error('获取订单失败', error)
     ElMessage.error('无法加载订单列表')
   } finally {
     loading.value = false
+    await fetchOrderNoticeCount()
+  }
+}
+
+const fetchOrderNoticeCount = async () => {
+  try {
+    const res = await request.get('/order/notice/unread-count')
+    noticeCounts.value = res || { buyer: 0, seller: 0, total: 0 }
+    window.dispatchEvent(new CustomEvent('order-notice-count', { detail: noticeCounts.value }))
+  } catch (e) {
+    console.error(e)
+    noticeCounts.value = { buyer: 0, seller: 0, total: 0 }
+    window.dispatchEvent(new CustomEvent('order-notice-count', { detail: noticeCounts.value }))
   }
 }
 
@@ -301,8 +470,129 @@ const confirmPay = async () => {
   }
 }
 
+const openNoticeDrawer = async () => {
+  noticeDrawerVisible.value = true
+  noticeTypeFilter.value = 'ALL'
+  await fetchNoticeList()
+}
+
+const fetchNoticeList = async () => {
+  noticeLoading.value = true
+  try {
+    const res = await request.get('/order/notice/list', {
+      params: { scope: orderScope.value, limit: 80 }
+    })
+    noticeList.value = res || []
+  } catch (e) {
+    console.error(e)
+    noticeList.value = []
+  } finally {
+    noticeLoading.value = false
+    await fetchOrderNoticeCount()
+  }
+}
+
+const markNoticeRead = async (row) => {
+  if (!row?.id) return
+  try {
+    await request.post(`/order/notice/read?id=${row.id}`)
+    row.isRead = 1
+  } catch (e) {
+    console.error(e)
+  } finally {
+    await fetchOrderNoticeCount()
+  }
+}
+
+const noticeText = (row) => {
+  const t = row?.noticeType
+  if (t === 'NEW_ORDER') return '新订单待处理'
+  if (t === 'PAY_PENDING') return '待付款：订单已创建'
+  if (t === 'PAID') return '买家已付款'
+  if (t === 'SHIPPED') return '卖家已发货'
+  if (t === 'RECEIVED') return '买家已确认收货'
+  return '订单状态更新'
+}
+
+const noticeRowClass = ({ row }) => {
+  return Number(row?.isRead) === 0 ? 'notice-unread' : ''
+}
+
+const orderRowClass = ({ row }) => {
+  const base = `order-row-${row.id}`
+  if (highlightOrderId.value && row.id === highlightOrderId.value) {
+    return `${base} order-row-highlight`
+  }
+  return base
+}
+
+const canManualRead = (row) => {
+  // 待处理类通知不允许手动清除，避免红点失效
+  const t = row?.noticeType
+  return t === 'RECEIVED'
+}
+
+const openOrderDetail = async (row) => {
+  if (!row?.orderId) return
+  noticeDrawerVisible.value = false
+  await focusOrderInList(row.orderId)
+  await loadOrderDetail(row.orderId)
+}
+
+const loadOrderDetail = async (orderId) => {
+  orderDetailVisible.value = true
+  orderDetailLoading.value = true
+  orderDetail.value = null
+  try {
+    const res = await request.get('/order/detail', { params: { orderId } })
+    orderDetail.value = res
+  } catch (e) {
+    console.error(e)
+  } finally {
+    orderDetailLoading.value = false
+  }
+}
+
+const orderDetailChat = () => {
+  if (!orderDetail.value?.id) return
+  orderDetailVisible.value = false
+  router.push(`/orders/${orderDetail.value.id}/chat`)
+}
+
+const openOrderChat = (row) => {
+  if (!row?.orderId) return
+  noticeDrawerVisible.value = false
+  router.push(`/orders/${row.orderId}/chat`)
+}
+
+const focusOrderInList = async (orderId) => {
+  if (!orderId) return
+  const exists = orderList.value.some((o) => Number(o.id) === Number(orderId))
+  if (!exists) {
+    await fetchOrders()
+  }
+  highlightOrderId.value = orderId
+  await nextTick()
+  scrollToOrder(orderId)
+  if (highlightTimer) clearTimeout(highlightTimer)
+  highlightTimer = setTimeout(() => {
+    highlightOrderId.value = null
+  }, 5000)
+}
+
+const scrollToOrder = (orderId) => {
+  const el = document.querySelector(`.order-row-${orderId}`)
+  if (el && el.scrollIntoView) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+}
+
 onMounted(() => {
   fetchOrders()
+})
+
+onBeforeUnmount(() => {
+  if (highlightTimer) clearTimeout(highlightTimer)
 })
 </script>
 
@@ -356,6 +646,9 @@ onMounted(() => {
   font-size: 12px;
   color: #909399;
 }
+.tab-badge :deep(.el-badge__content) {
+  transform: translate(6px, -6px);
+}
 .price {
   color: #f56c6c;
   font-weight: bold;
@@ -368,5 +661,40 @@ onMounted(() => {
   color: #606266;
   line-height: 1.6;
   margin: 0 0 12px;
+}
+.order-notice-badge :deep(.el-badge__content) {
+  transform: translate(6px, -6px);
+}
+.notice-actions {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.notice-filter {
+  min-width: 140px;
+}
+.notice-count {
+  font-size: 12px;
+  color: #909399;
+}
+:deep(.order-row-highlight td) {
+  background: #e8f4ff !important;
+  transition: background-color 0.8s ease;
+}
+.notice-order .order-no {
+  font-weight: 600;
+}
+.notice-order .order-product {
+  font-size: 12px;
+  color: #909399;
+}
+.read-flag {
+  font-size: 12px;
+  color: #c0c4cc;
+}
+:deep(.notice-unread td) {
+  background: #fff7e6 !important;
 }
 </style>

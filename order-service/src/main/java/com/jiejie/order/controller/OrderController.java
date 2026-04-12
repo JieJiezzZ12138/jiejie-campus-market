@@ -13,6 +13,7 @@ import com.jiejie.order.mapper.CartMapper;
 import com.jiejie.order.mapper.ChatThreadMapper;
 import com.jiejie.order.mapper.OrderFeedbackMapper;
 import com.jiejie.order.mapper.OrderMapper;
+import com.jiejie.order.mapper.OrderNoticeMapper;
 import com.jiejie.order.mapper.PrivateMessageMapper;
 import com.jiejie.order.mapper.UserMapper;
 import com.jiejie.product.mapper.ProductMapper;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -56,6 +58,9 @@ public class OrderController {
 
     @Autowired
     private PrivateMessageMapper privateMessageMapper;
+
+    @Autowired
+    private OrderNoticeMapper orderNoticeMapper;
 
     /**
      * 1. 马上结算接口 (彻底告别参数伪造！)
@@ -105,6 +110,21 @@ public class OrderController {
 
             // 下架商品
             productMapper.updateStatus(cartItem.getProductId(), 2);
+
+            // 订单通知：买家待付款、卖家新订单
+            Long sellerId = null;
+            try {
+                if (cartItem.getProductId() != null) {
+                    com.jiejie.product.entity.Product p = productMapper.selectById(cartItem.getProductId());
+                    sellerId = p != null ? p.getSellerId() : null;
+                }
+            } catch (Exception ignored) {
+                sellerId = null;
+            }
+            createNotice(order.getId(), currentUserId, "BUYER", "PAY_PENDING");
+            if (sellerId != null) {
+                createNotice(order.getId(), sellerId, "SELLER", "NEW_ORDER");
+            }
         }
 
         // 结算完成后，清空该用户的购物车
@@ -149,6 +169,8 @@ public class OrderController {
         List<Order> orders;
         if ("seller".equalsIgnoreCase(scope)) {
             orders = orderMapper.findBySellerId(currentUserId);
+            // 卖家查看订单时，已收货通知可视为已读（信息性）
+            orderNoticeMapper.markReadByTypes(currentUserId, "SELLER", Arrays.asList("RECEIVED"));
         } else {
             orders = orderMapper.findByUserId(currentUserId);
         }
@@ -177,6 +199,15 @@ public class OrderController {
         if (n == 0) {
             return Result.error("支付失败，请刷新后重试");
         }
+        // 清除买家待付款通知
+        orderNoticeMapper.markReadByOrder(currentUserId, orderId);
+        // 通知卖家：买家已付款
+        Order paid = orderMapper.findByIdWithProduct(orderId);
+        if (paid != null && paid.getSellerId() != null) {
+            // 清理卖家该订单旧通知（如 NEW_ORDER）
+            orderNoticeMapper.markReadByOrder(paid.getSellerId(), orderId);
+            createNotice(orderId, paid.getSellerId(), "SELLER", "PAID");
+        }
         return Result.success("支付成功！卖家将尽快为您发货。");
     }
 
@@ -202,6 +233,12 @@ public class OrderController {
         int n = orderMapper.markShipped(orderId);
         if (n == 0) {
             return Result.error("发货失败，请重试");
+        }
+        // 卖家已完成发货，清理该订单下卖家通知
+        orderNoticeMapper.markReadByOrder(currentUserId, orderId);
+        // 通知买家：已发货
+        if (o.getBuyerId() != null) {
+            createNotice(orderId, o.getBuyerId(), "BUYER", "SHIPPED");
         }
         return Result.success("已标记发货");
     }
@@ -229,7 +266,101 @@ public class OrderController {
         if (n == 0) {
             return Result.error("确认收货失败，请重试");
         }
+        // 买家已确认收货，清理该订单下买家通知
+        orderNoticeMapper.markReadByOrder(currentUserId, orderId);
+        // 通知卖家：买家已确认收货
+        if (o.getSellerId() != null) {
+            createNotice(orderId, o.getSellerId(), "SELLER", "RECEIVED");
+        }
         return Result.success("已确认收货，订单已完成");
+    }
+
+    /**
+     * 订单红点：未读通知统计
+     */
+    @GetMapping("/notice/unread-count")
+    public Result orderNoticeUnread(HttpServletRequest request) {
+        Long currentUserId = (Long) request.getAttribute("currentUserId");
+        if (currentUserId == null) {
+            return Result.error("未获取到登录状态");
+        }
+        int buyer = orderNoticeMapper.countUnreadByScope(currentUserId, "BUYER");
+        int seller = orderNoticeMapper.countUnreadByScope(currentUserId, "SELLER");
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("buyer", buyer);
+        map.put("seller", seller);
+        map.put("total", buyer + seller);
+        return Result.success(map);
+    }
+
+    @GetMapping("/notice/list")
+    public Result orderNoticeList(HttpServletRequest request,
+                                  @RequestParam("scope") String scope,
+                                  @RequestParam(value = "limit", defaultValue = "50") int limit) {
+        Long currentUserId = (Long) request.getAttribute("currentUserId");
+        if (currentUserId == null) {
+            return Result.error("未获取到登录状态");
+        }
+        String normalized = normalizeScope(scope);
+        if (normalized == null) {
+            return Result.error("无效的 scope");
+        }
+        int cap = Math.min(Math.max(limit, 1), 200);
+        return Result.success(orderNoticeMapper.listNotice(currentUserId, normalized, cap));
+    }
+
+    @PostMapping("/notice/read")
+    public Result orderNoticeRead(HttpServletRequest request, @RequestParam("id") Long id) {
+        Long currentUserId = (Long) request.getAttribute("currentUserId");
+        if (currentUserId == null) {
+            return Result.error("未获取到登录状态");
+        }
+        int n = orderNoticeMapper.markReadById(id, currentUserId);
+        if (n == 0) {
+            return Result.error("未找到通知或已读");
+        }
+        return Result.success("已标记已读");
+    }
+
+    @PostMapping("/notice/read-all")
+    public Result orderNoticeReadAll(HttpServletRequest request, @RequestParam("scope") String scope) {
+        Long currentUserId = (Long) request.getAttribute("currentUserId");
+        if (currentUserId == null) {
+            return Result.error("未获取到登录状态");
+        }
+        String normalized = normalizeScope(scope);
+        if (normalized == null) {
+            return Result.error("无效的 scope");
+        }
+        orderNoticeMapper.markReadAll(currentUserId, normalized);
+        return Result.success("已全部标记已读");
+    }
+
+    private String normalizeScope(String scope) {
+        if (scope == null) {
+            return null;
+        }
+        String s = scope.trim().toLowerCase();
+        if ("buyer".equals(s)) {
+            return "BUYER";
+        }
+        if ("seller".equals(s)) {
+            return "SELLER";
+        }
+        return null;
+    }
+
+    private void createNotice(Long orderId, Long userId, String scope, String type) {
+        if (orderId == null || userId == null) {
+            return;
+        }
+        com.jiejie.order.entity.OrderNotice n = new com.jiejie.order.entity.OrderNotice();
+        n.setOrderId(orderId);
+        n.setUserId(userId);
+        n.setScope(scope);
+        n.setNoticeType(type);
+        n.setIsRead(0);
+        orderNoticeMapper.insert(n);
     }
 
     /**
