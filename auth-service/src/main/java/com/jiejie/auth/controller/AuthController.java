@@ -82,6 +82,8 @@ public class AuthController {
             return Result.error("该手机号已被注册");
         }
 
+
+
         SysUser user = new SysUser();
         user.setUsername(username);
         user.setPassword(password);
@@ -102,5 +104,11 @@ public class AuthController {
         data.put("token", token);
         data.put("userInfo", saved);
         return Result.success(data);
+    }
+
+    // 专门用于测试网络是否通畅的接口
+    @GetMapping("/ping")
+    public Result ping() {
+        return Result.success("ok");
     }
 }
