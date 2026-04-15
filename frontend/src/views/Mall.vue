@@ -122,7 +122,7 @@
         <el-form-item label="商品图片" required>
           <el-upload
             class="avatar-uploader"
-            action="http://localhost:8080/product/upload" 
+            :action="uploadActionUrl"
             :headers="uploadHeaders"
             :show-file-list="false"
             :on-success="handleUploadSuccess"
@@ -195,6 +195,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 // 👉 引入 Location 图标
 import { ShoppingBag, Search, ShoppingCart, Plus, Picture, Location, ChatDotRound } from '@element-plus/icons-vue'
 import request from '../utils/request' 
+import { resolveImageUrl, uploadActionUrl } from '../utils/env'
 
 const router = useRouter()
 
@@ -229,12 +230,7 @@ const banners = [
 ]
 
 const getImageUrl = (url) => {
-  if (!url) return '';
-  if (url.includes('localhost:8080') || url.includes('localhost:8081')) {
-    return url.replace(/8080|8081/g, '8082');
-  }
-  if (url.startsWith('http')) return url;
-  return 'http://localhost:8082' + url;
+  return resolveImageUrl(url)
 }
 
 const handleSearch = () => fetchProducts()

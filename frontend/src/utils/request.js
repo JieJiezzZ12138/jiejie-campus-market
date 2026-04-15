@@ -4,7 +4,7 @@ import router from '../router'
 
 // 创建 axios 实例
 const request = axios.create({
-  baseURL: 'http://localhost:8080', // 你的网关地址或后端地址，保持你原来的不变
+  baseURL: import.meta.env.VITE_APP_BASE_API || 'http://localhost:8080',
   timeout: 5000
 })
 

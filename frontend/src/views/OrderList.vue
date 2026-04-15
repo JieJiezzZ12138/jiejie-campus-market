@@ -271,6 +271,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Picture, Wallet, ArrowLeft, Refresh } from '@element-plus/icons-vue'
 import request from '../utils/request'
+import { resolveImageUrl } from '../utils/env'
 
 const router = useRouter()
 const orderList = ref([])
@@ -333,12 +334,7 @@ const statusTagType = (s) => {
 }
 
 const getImageUrl = (url) => {
-  if (!url) return ''
-  if (url.includes('localhost:8080') || url.includes('localhost:8081')) {
-    return url.replace(/8080|8081/g, '8082')
-  }
-  if (url.startsWith('http')) return url
-  return 'http://localhost:8082' + url
+  return resolveImageUrl(url)
 }
 
 const fetchOrders = async () => {
@@ -602,6 +598,21 @@ onBeforeUnmount(() => {
 }
 .header-left {
   display: flex;
+  align-items: center;
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.header-right :deep(.el-button.is-link) {
+  height: 32px;
+  line-height: 32px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.header-right :deep(.el-badge) {
+  display: inline-flex;
   align-items: center;
 }
 .title {

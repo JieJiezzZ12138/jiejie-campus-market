@@ -242,6 +242,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { DataBoard, Refresh, Picture, Bell, User, Goods } from '@element-plus/icons-vue'
 import request from '../utils/request'
+import { resolveImageUrl } from '../utils/env'
 
 const router = useRouter()
 const userInfo = ref(JSON.parse(localStorage.getItem('userInfo') || '{}'))
@@ -360,12 +361,7 @@ const adminProducts = ref([])
 const loading = ref(false)
 
 const getImageUrl = (url) => {
-  if (!url) return '';
-  if (url.includes('localhost:8080') || url.includes('localhost:8081')) {
-    return url.replace(/8080|8081/g, '8082');
-  }
-  if (url.startsWith('http')) return url;
-  return 'http://localhost:8082' + url;
+  return resolveImageUrl(url)
 }
 
 const fetchAdminProducts = async () => {

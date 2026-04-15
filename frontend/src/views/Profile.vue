@@ -16,7 +16,7 @@
         <el-form-item label="头像">
           <el-upload
             class="avatar-uploader"
-            action="http://localhost:8080/product/upload"
+            :action="uploadActionUrl"
             :headers="uploadHeaders"
             :show-file-list="false"
             :on-success="onAvatarSuccess"
@@ -57,6 +57,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, Plus } from '@element-plus/icons-vue'
 import request from '../utils/request'
+import { resolveImageUrl, uploadActionUrl } from '../utils/env'
 
 const router = useRouter()
 const loading = ref(false)
@@ -89,12 +90,7 @@ const beforeImageUpload = (rawFile) => {
 }
 
 const getImageUrl = (url) => {
-  if (!url) return ''
-  if (url.includes('localhost:8080') || url.includes('localhost:8081')) {
-    return url.replace(/8080|8081/g, '8082')
-  }
-  if (url.startsWith('http')) return url
-  return 'http://localhost:8082' + url
+  return resolveImageUrl(url)
 }
 
 const onAvatarSuccess = (res) => {
