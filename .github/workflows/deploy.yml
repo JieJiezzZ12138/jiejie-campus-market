@@ -1,4 +1,4 @@
-name: Java CICD with Docker
+name: Java CICD with Docker (Auth Service)
 
 on:
   push:
@@ -22,19 +22,14 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          # 1. 强制打印当前目录和文件列表，看看 GitHub 到底在哪一层找文件
-          echo "Checking current directory..."
-          pwd
-          ls -F
+          # 1. 登录阿里云容器镜像服务
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login --username "${{ secrets.REGISTRY_USER }}" crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com --password-stdin
           
-          # 2. 统一使用长地址登录
-          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login --username ${{ secrets.REGISTRY_USER }} crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com --password-stdin
+          # 2. 构建 Auth 服务镜像 (注意末尾的 . 代表当前目录)
+          docker build -f ./Dockerfile -t crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/auth-service:latest .
           
-          # 3. 构建镜像 (重点：强制指定使用当前目录的 ./Dockerfile)
-          docker build -f ./Dockerfile -t crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/my-system-cloud:latest .
-          
-          # 4. 推送镜像
-          docker push crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/my-system-cloud:latest
+          # 3. 推送镜像
+          docker push crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/auth-service:latest
 
   deploy:
     needs: build-and-push
@@ -47,22 +42,29 @@ jobs:
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login --username ${{ secrets.REGISTRY_USER }} crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com --password-stdin
+            # 1. 在服务器上登录阿里云镜像服务
+            echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login --username "${{ secrets.REGISTRY_USER }}" crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com --password-stdin
             
-            # 停止、删除容器并清理旧镜像（防止硬盘爆满）
-            docker stop my-system-container || true
-            docker rm my-system-container || true
-            docker rmi crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/my-system-cloud:latest || true
+            # 2. 停止并删除旧容器、旧镜像
+            docker stop auth-service-container || true
+            docker rm auth-service-container || true
+            docker rmi crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/auth-service:latest || true
             
-            docker pull crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/my-system-cloud:latest
+            # 3. 拉取最新镜像
+            docker pull crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/auth-service:latest
             
-            # 运行容器，严格限制内存防止 OOM
+            # 4. 运行新容器
+            # --network host: 让容器直接使用宿主机网络(localhost能直接连上Nacos和MySQL)
+            # -m 180m: 严格限制内存，防止服务器 OOM
             docker run -d \
-              --name my-system-container \
+              --name auth-service-container \
               --network host \
-              -m 256m \
+              -m 180m \
               --cpus="0.5" \
-              crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/my-system-cloud:latest
+              -e SPRING_PROFILES_ACTIVE=prod \
+              -e DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+              -e REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}" \
+              crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/auth-service:latest
             
-            # 清理无用的虚悬镜像
+            # 5. 清理无用的虚悬镜像释放磁盘空间
             docker image prune -f

@@ -1,8 +1,15 @@
+# 使用轻量级的 Java 21 运行环境
 FROM eclipse-temurin:21-jre-alpine
+
+# 设置工作目录
 WORKDIR /app
 
-# 这里我们依然采用之前的动态 COPY 逻辑，但启动参数是关键
-COPY **/target/*.jar app.jar
+# 复制 Auth 服务的 jar 包到容器中并重命名为 app.jar
+# (注意：路径要跟你的实际 target 路径对上)
+COPY auth-service/target/auth-service-1.0.0-exec.jar app.jar
 
-# 极致压榨：限制堆内存 64M，使用串行垃圾回收器（省 CPU 和内存）
-ENTRYPOINT ["java", "-Xmx64m", "-Xms64m", "-XX:MaxMetaspaceSize=64m", "-Xss256k", "-XX:+UseSerialGC", "-jar", "app.jar"]
+# 声明暴露的端口（假设 auth-service 是 8081，按需修改）
+EXPOSE 8081
+
+# 启动命令 (环境变量会在 docker run 时注入)
+ENTRYPOINT ["java", "-jar", "app.jar"]
