@@ -22,11 +22,18 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          # 统一使用长地址登录
+          # 1. 强制打印当前目录和文件列表，看看 GitHub 到底在哪一层找文件
+          echo "Checking current directory..."
+          pwd
+          ls -F
+          
+          # 2. 统一使用长地址登录
           echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login --username ${{ secrets.REGISTRY_USER }} crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com --password-stdin
           
-          # 构建并推送到你的长地址仓库
-          docker build -t crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/my-system-cloud:latest .
+          # 3. 构建镜像 (重点：强制指定使用当前目录的 ./Dockerfile)
+          docker build -f ./Dockerfile -t crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/my-system-cloud:latest .
+          
+          # 4. 推送镜像
           docker push crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/my-system-cloud:latest
 
   deploy:
