@@ -66,15 +66,32 @@ jobs:
     name: Deploy via SSH
     needs: package
     runs-on: ubuntu-latest
-    if: ${{ (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true')) && secrets.DEPLOY_HOST != '' && secrets.DEPLOY_USER != '' && secrets.DEPLOY_SSH_KEY != '' && secrets.DEPLOY_PATH != '' }}
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true') }}
     steps:
+      - name: Validate deploy secrets
+        id: deploy_check
+        run: |
+          missing=""
+          [ -z "${{ secrets.DEPLOY_HOST }}" ] && missing="$missing DEPLOY_HOST"
+          [ -z "${{ secrets.DEPLOY_USER }}" ] && missing="$missing DEPLOY_USER"
+          [ -z "${{ secrets.DEPLOY_SSH_KEY }}" ] && missing="$missing DEPLOY_SSH_KEY"
+          [ -z "${{ secrets.DEPLOY_PATH }}" ] && missing="$missing DEPLOY_PATH"
+          if [ -n "$missing" ]; then
+            echo "::warning::Skip deploy. Missing secrets:$missing"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Download artifact
+        if: ${{ steps.deploy_check.outputs.skip != 'true' }}
         uses: actions/download-artifact@v4
         with:
           name: my-system-cloud-${{ github.sha }}
           path: release
 
       - name: Configure SSH key
+        if: ${{ steps.deploy_check.outputs.skip != 'true' }}
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
@@ -82,12 +99,14 @@ jobs:
           ssh-keyscan -p "${{ secrets.DEPLOY_PORT || '22' }}" "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Upload package to server
+        if: ${{ steps.deploy_check.outputs.skip != 'true' }}
         run: |
           scp -i ~/.ssh/deploy_key -P "${{ secrets.DEPLOY_PORT || '22' }}" \
             release/my-system-cloud-${GITHUB_SHA}.tar.gz \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/"
 
       - name: Extract and run remote deploy script
+        if: ${{ steps.deploy_check.outputs.skip != 'true' }}
         run: |
           ssh -i ~/.ssh/deploy_key -p "${{ secrets.DEPLOY_PORT || '22' }}" \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" <<'EOF'
