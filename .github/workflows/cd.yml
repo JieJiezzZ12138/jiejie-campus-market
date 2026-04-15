@@ -53,7 +53,7 @@ jobs:
           cp order-service/target/*.jar release/backend/
           cp product-service/target/*.jar release/backend/
           cp -R frontend/dist release/frontend/
-          tar -czf release/my-system-cloud-${GITHUB_SHA}.tar.gz -C release backend frontend
+          tar -czf release/my-system-cloud-${{ github.sha }}.tar.gz -C release backend frontend
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -102,22 +102,28 @@ jobs:
         if: ${{ steps.deploy_check.outputs.skip != 'true' }}
         run: |
           scp -i ~/.ssh/deploy_key -P "${{ secrets.DEPLOY_PORT || '22' }}" \
-            release/my-system-cloud-${GITHUB_SHA}.tar.gz \
+            release/my-system-cloud-${{ github.sha }}.tar.gz \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/"
 
       - name: Extract and run remote deploy script
         if: ${{ steps.deploy_check.outputs.skip != 'true' }}
         run: |
           ssh -i ~/.ssh/deploy_key -p "${{ secrets.DEPLOY_PORT || '22' }}" \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" <<'EOF'
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "DEPLOY_PATH='${{ secrets.DEPLOY_PATH }}' ARTIFACT_NAME='my-system-cloud-${{ github.sha }}.tar.gz' RELEASE_SHA='${{ github.sha }}' DEPLOY_SCRIPT='${{ secrets.DEPLOY_SCRIPT }}' bash -s" <<'EOF'
           set -e
-          ARCHIVE_PATH="${{ secrets.DEPLOY_PATH }}/my-system-cloud-${GITHUB_SHA}.tar.gz"
-          RELEASE_DIR="${{ secrets.DEPLOY_PATH }}/releases/${GITHUB_SHA}"
+          ARCHIVE_PATH="${DEPLOY_PATH}/${ARTIFACT_NAME}"
+          RELEASE_DIR="${DEPLOY_PATH}/releases/${RELEASE_SHA}"
+          if [ ! -f "${ARCHIVE_PATH}" ]; then
+            echo "Archive not found: ${ARCHIVE_PATH}"
+            ls -lah "${DEPLOY_PATH}" || true
+            exit 2
+          fi
           mkdir -p "${RELEASE_DIR}"
           tar -xzf "${ARCHIVE_PATH}" -C "${RELEASE_DIR}"
 
-          if [ -n "${{ secrets.DEPLOY_SCRIPT }}" ] && [ -f "${{ secrets.DEPLOY_SCRIPT }}" ]; then
-            bash "${{ secrets.DEPLOY_SCRIPT }}" "${RELEASE_DIR}"
+          if [ -n "${DEPLOY_SCRIPT}" ] && [ -f "${DEPLOY_SCRIPT}" ]; then
+            bash "${DEPLOY_SCRIPT}" "${RELEASE_DIR}"
           else
             echo "No DEPLOY_SCRIPT provided. Artifact extracted to ${RELEASE_DIR}."
           fi
