@@ -1,0 +1,61 @@
+name: Java CICD with Docker
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+
+      - name: Build and Push Docker Image
+        run: |
+          # 统一使用长地址登录
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login --username ${{ secrets.REGISTRY_USER }} crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com --password-stdin
+          
+          # 构建并推送到你的长地址仓库
+          docker build -t crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/my-system-cloud:latest .
+          docker push crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/my-system-cloud:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Aliyun
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: root
+          password: ${{ secrets.REMOTE_PASSWORD }}
+          script: |
+            echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login --username ${{ secrets.REGISTRY_USER }} crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com --password-stdin
+            
+            # 停止、删除容器并清理旧镜像（防止硬盘爆满）
+            docker stop my-system-container || true
+            docker rm my-system-container || true
+            docker rmi crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/my-system-cloud:latest || true
+            
+            docker pull crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/my-system-cloud:latest
+            
+            # 运行容器，严格限制内存防止 OOM
+            docker run -d \
+              --name my-system-container \
+              --network host \
+              -m 256m \
+              --cpus="0.5" \
+              crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/my-system-cloud:latest
+            
+            # 清理无用的虚悬镜像
+            docker image prune -f
