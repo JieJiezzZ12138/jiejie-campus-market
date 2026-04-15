@@ -101,30 +101,38 @@ jobs:
       - name: Upload package to server
         if: ${{ steps.deploy_check.outputs.skip != 'true' }}
         run: |
-          scp -i ~/.ssh/deploy_key -P "${{ secrets.DEPLOY_PORT || '22' }}" \
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key -P "${{ secrets.DEPLOY_PORT || '22' }}" \
             release/my-system-cloud-${{ github.sha }}.tar.gz \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/"
 
       - name: Extract and run remote deploy script
         if: ${{ steps.deploy_check.outputs.skip != 'true' }}
         run: |
-          ssh -i ~/.ssh/deploy_key -p "${{ secrets.DEPLOY_PORT || '22' }}" \
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key -p "${{ secrets.DEPLOY_PORT || '22' }}" \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-            "DEPLOY_PATH='${{ secrets.DEPLOY_PATH }}' ARTIFACT_NAME='my-system-cloud-${{ github.sha }}.tar.gz' RELEASE_SHA='${{ github.sha }}' DEPLOY_SCRIPT='${{ secrets.DEPLOY_SCRIPT }}' bash -s" <<'EOF'
+            "DEPLOY_PATH='${{ secrets.DEPLOY_PATH }}' SHA='${{ github.sha }}' bash -s" <<'EOF'
           set -e
-          ARCHIVE_PATH="${DEPLOY_PATH}/${ARTIFACT_NAME}"
-          RELEASE_DIR="${DEPLOY_PATH}/releases/${RELEASE_SHA}"
-          if [ ! -f "${ARCHIVE_PATH}" ]; then
-            echo "Archive not found: ${ARCHIVE_PATH}"
-            ls -lah "${DEPLOY_PATH}" || true
+          
+          echo "👉 1. 进入部署目录: $DEPLOY_PATH"
+          cd "$DEPLOY_PATH"
+          
+          echo "👉 2. 检查压缩包..."
+          if [ ! -f "my-system-cloud-$SHA.tar.gz" ]; then
+            echo "❌ 错误: 找不到 my-system-cloud-$SHA.tar.gz"
             exit 2
           fi
-          mkdir -p "${RELEASE_DIR}"
-          tar -xzf "${ARCHIVE_PATH}" -C "${RELEASE_DIR}"
-
-          if [ -n "${DEPLOY_SCRIPT}" ] && [ -f "${DEPLOY_SCRIPT}" ]; then
-            bash "${DEPLOY_SCRIPT}" "${RELEASE_DIR}"
+          
+          echo "👉 3. 解压产物..."
+          tar -xzf "my-system-cloud-$SHA.tar.gz"
+          
+          echo "👉 4. 整理目录 (移动 Jar 包)..."
+          cp backend/*.jar ./
+          
+          echo "👉 5. 执行自动重启脚本..."
+          if [ -f "deploy.sh" ]; then
+            chmod +x deploy.sh
+            ./deploy.sh
           else
-            echo "No DEPLOY_SCRIPT provided. Artifact extracted to ${RELEASE_DIR}."
+            echo "⚠️ 警告: 未找到 deploy.sh，文件已更新但未重启服务。"
           fi
           EOF
