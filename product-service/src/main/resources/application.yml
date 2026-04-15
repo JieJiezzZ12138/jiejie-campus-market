@@ -1,9 +1,11 @@
 server:
-  port: 8082 # 商品服务跑在 8082 端口
+  port: 8082
 
 spring:
   application:
-    name: product-service # 注册到 Nacos 的名字 (与 Gateway 里的路由配置对应)
+    name: product-service
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
   servlet:
     multipart:
       max-file-size: 5MB
@@ -11,17 +13,13 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr: localhost:8848
+        server-addr: ${NACOS_HOST:127.0.0.1}:8848
+        namespace: ${NACOS_NAMESPACE:}
         file-extension: yaml
-  datasource:
-    url: jdbc:mysql://localhost:3306/my_system?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
-    username: root
-    password: 123456
-    driver-class-name: com.mysql.cj.jdbc.Driver
 
 mybatis:
   configuration:
     map-underscore-to-camel-case: true
 
 file:
-    upload-path: /Users/jiejie/Desktop/web/my-system-cloud/pictures/ # 改成你电脑上的真实文件夹路径
+  upload-path: ${FILE_UPLOAD_PATH:/Users/jiejie/Desktop/web/my-system-cloud/pictures/}

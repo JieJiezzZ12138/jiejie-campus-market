@@ -1,19 +1,17 @@
 server:
-  port: 8081 # 认证服务跑在 8081 端口
+  port: 8081
 
 spring:
   application:
-    name: auth-service # 注册到 Nacos 的名字
+    name: auth-service
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
   cloud:
     nacos:
       discovery:
-        server-addr: localhost:8848
-  datasource:
-    url: jdbc:mysql://localhost:3306/my_system?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
-    username: root
-    password: 123456
-    driver-class-name: com.mysql.cj.jdbc.Driver
+        server-addr: ${NACOS_HOST:127.0.0.1}:8848
+        namespace: ${NACOS_NAMESPACE:}
 
 mybatis:
   configuration:
-    map-underscore-to-camel-case: true # 自动把数据库的下划线转成驼峰命名
+    map-underscore-to-camel-case: true
