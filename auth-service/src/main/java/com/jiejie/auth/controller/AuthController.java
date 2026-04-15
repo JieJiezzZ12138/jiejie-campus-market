@@ -38,8 +38,9 @@ public class AuthController {
             }
 
             // 3. 登录成功，生成大厂级别的 JWT Token！
-            // 👉 核心修改 2：调用 common 模块的新版方法，只传 ID 和 用户名
-            String token = JwtUtils.generateToken(user.getId(), user.getUsername());
+            // 👉 核心修改 2：调用 common 模块的新版方法，写入角色信息
+            String role = user.getRole() != null ? user.getRole() : "USER";
+            String token = JwtUtils.generateToken(user.getId(), user.getUsername(), role);
 
             // 4. 把 Token 和用户信息返回给前端
             Map<String, Object> data = new HashMap<>();
@@ -52,5 +53,54 @@ public class AuthController {
         }
 
         return Result.error("账号或密码错误，请重试！");
+    }
+
+    @PostMapping("/register")
+    public Result register(@RequestBody Map<String, String> body) {
+        String username = body.get("username") != null ? body.get("username").trim() : "";
+        String password = body.get("password");
+        String nickname = body.get("nickname");
+        String phone = body.get("phone") != null ? body.get("phone").trim() : "";
+        String campusAddress = body.get("campusAddress");
+        if (!org.springframework.util.StringUtils.hasText(username)) {
+            return Result.error("请输入账号");
+        }
+        if (!org.springframework.util.StringUtils.hasText(password) || password.length() < 6) {
+            return Result.error("密码至少 6 位");
+        }
+        if (!org.springframework.util.StringUtils.hasText(phone)) {
+            return Result.error("请输入手机号");
+        }
+        if (!phone.matches("^\\d{7,20}$")) {
+            return Result.error("手机号格式不正确");
+        }
+        if (userMapper.findByUsername(username) != null) {
+            return Result.error("该账号已被注册");
+        }
+        SysUser byPhone = userMapper.findByPhone(phone);
+        if (byPhone != null) {
+            return Result.error("该手机号已被注册");
+        }
+
+        SysUser user = new SysUser();
+        user.setUsername(username);
+        user.setPassword(password);
+        user.setNickname(org.springframework.util.StringUtils.hasText(nickname) ? nickname.trim() : username);
+        user.setAvatar(null);
+        user.setPhone(phone);
+        user.setRole("USER");
+        user.setAuditStatus(1);
+        user.setCampusAddress(campusAddress != null ? campusAddress.trim() : null);
+
+        userMapper.insert(user);
+
+        SysUser saved = userMapper.findById(user.getId());
+        String token = JwtUtils.generateToken(saved.getId(), saved.getUsername(),
+                saved.getRole() != null ? saved.getRole() : "USER");
+        saved.setPassword(null);
+        Map<String, Object> data = new HashMap<>();
+        data.put("token", token);
+        data.put("userInfo", saved);
+        return Result.success(data);
     }
 }

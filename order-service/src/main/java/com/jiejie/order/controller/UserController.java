@@ -1,16 +1,15 @@
 package com.jiejie.order.controller;
 
 import com.jiejie.common.Result;
-import com.jiejie.common.utils.JwtUtils;
 import com.jiejie.order.entity.User;
 import com.jiejie.order.mapper.AdminNotificationMapper;
 import com.jiejie.order.mapper.UserMapper;
+import com.jiejie.order.security.AuthContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
-import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -23,92 +22,9 @@ public class UserController {
     @Autowired
     private AdminNotificationMapper adminNotificationMapper;
 
-    /**
-     * 1. 真实登录接口 (👉 修复 400 错误：改为 @RequestBody 接收 JSON)
-     */
-    @PostMapping("/login")
-    public Result login(@RequestBody Map<String, String> loginData) {
-        String username = loginData.get("username");
-        String password = loginData.get("password");
-
-        // 1. 去数据库真实查询
-        User user = userMapper.findByUsername(username);
-
-        // 2. 校验账号密码
-        if (user == null || !user.getPassword().equals(password)) {
-            return Result.error("用户名或密码错误！");
-        }
-
-        // 3. 校验状态
-        if (user.getStatus() != null && user.getStatus() == 0) {
-            return Result.error("您的账号因违规已被封禁，请联系管理员！");
-        }
-
-        // 4. 生成 Token
-        String token = JwtUtils.generateToken(user.getId(), user.getUsername());
-
-        // 5. 返回结果（不向前端返回密码）
-        user.setPassword(null);
-        Map<String, Object> data = new HashMap<>();
-        data.put("token", token);
-        data.put("userInfo", user);
-
-        return Result.success(data);
-    }
-
-    /**
-     * 用户注册：默认普通用户、审核通过后可立即登录
-     */
-    @PostMapping("/register")
-    public Result register(@RequestBody Map<String, String> body) {
-        String username = body.get("username") != null ? body.get("username").trim() : "";
-        String password = body.get("password");
-        String nickname = body.get("nickname");
-        String phone = body.get("phone") != null ? body.get("phone").trim() : "";
-        if (!StringUtils.hasText(username)) {
-            return Result.error("请输入账号");
-        }
-        if (!StringUtils.hasText(password) || password.length() < 6) {
-            return Result.error("密码至少 6 位");
-        }
-        if (!StringUtils.hasText(phone)) {
-            return Result.error("请输入手机号");
-        }
-        if (!phone.matches("^\\d{7,20}$")) {
-            return Result.error("手机号格式不正确");
-        }
-        if (userMapper.findByUsername(username) != null) {
-            return Result.error("该账号已被注册");
-        }
-        User byPhone = userMapper.findByPhone(phone);
-        if (byPhone != null) {
-            return Result.error("该手机号已被注册");
-        }
-
-        User user = new User();
-        user.setUsername(username);
-        user.setPassword(password);
-        user.setNickname(StringUtils.hasText(nickname) ? nickname.trim() : username);
-        user.setAvatar(null);
-        user.setPhone(phone);
-        user.setRole("USER");
-        user.setStatus(1);
-        user.setCampusAddress(body.get("campusAddress") != null ? body.get("campusAddress").trim() : null);
-
-        userMapper.insert(user);
-
-        User saved = userMapper.findById(user.getId());
-        String token = JwtUtils.generateToken(saved.getId(), saved.getUsername());
-        saved.setPassword(null);
-        Map<String, Object> data = new HashMap<>();
-        data.put("token", token);
-        data.put("userInfo", saved);
-        return Result.success(data);
-    }
-
     @GetMapping("/profile")
     public Result getProfile(HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("currentUserId");
+        Long userId = AuthContext.currentUserId(request);
         User user = userMapper.findById(userId);
         if (user == null) {
             return Result.error("用户不存在");
@@ -119,7 +35,7 @@ public class UserController {
 
     @PutMapping("/profile")
     public Result updateProfile(HttpServletRequest request, @RequestBody Map<String, String> body) {
-        Long userId = (Long) request.getAttribute("currentUserId");
+        Long userId = AuthContext.currentUserId(request);
         User existing = userMapper.findById(userId);
         if (existing == null) {
             return Result.error("用户不存在");
@@ -168,7 +84,7 @@ public class UserController {
     }
 
     private User requireAdminUser(HttpServletRequest request) {
-        Long uid = (Long) request.getAttribute("currentUserId");
+        Long uid = AuthContext.currentUserId(request);
         if (uid == null) {
             return null;
         }

@@ -1,7 +1,9 @@
 package com.jiejie.auth.mapper;
 
 import com.jiejie.auth.entity.SysUser;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
@@ -12,6 +14,17 @@ public interface UserMapper {
     // 登录用
     @Select("SELECT * FROM sys_user WHERE username = #{username}")
     SysUser findByUsername(@Param("username") String username);
+
+    @Select("SELECT * FROM sys_user WHERE phone = #{phone} LIMIT 1")
+    SysUser findByPhone(@Param("phone") String phone);
+
+    @Select("SELECT * FROM sys_user WHERE id = #{id}")
+    SysUser findById(@Param("id") Long id);
+
+    @Insert("INSERT INTO sys_user (username, password, nickname, avatar, phone, role, audit_status, campus_address, create_time) " +
+            "VALUES (#{username}, #{password}, #{nickname}, #{avatar}, #{phone}, #{role}, #{auditStatus}, #{campusAddress}, NOW())")
+    @Options(useGeneratedKeys = true, keyProperty = "id")
+    void insert(SysUser user);
 
     // 👉 管理员用：查询所有用户
     @Select("SELECT * FROM sys_user ORDER BY create_time DESC")

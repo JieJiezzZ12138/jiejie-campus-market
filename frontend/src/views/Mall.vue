@@ -39,8 +39,16 @@
             </div>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item @click="router.push('/orders')">我的订单</el-dropdown-item>
-                <el-dropdown-item @click="router.push('/messages')">我的私信</el-dropdown-item>
+                <el-dropdown-item @click="router.push('/orders')">
+                  <el-badge :value="orderNoticeTotal" :hidden="orderNoticeTotal === 0" :max="99" class="menu-item-badge">
+                    <span>我的订单</span>
+                  </el-badge>
+                </el-dropdown-item>
+                <el-dropdown-item @click="router.push('/messages')">
+                  <el-badge :value="threadCount" :hidden="threadCount === 0" :max="99" class="menu-item-badge">
+                    <span>我的私信</span>
+                  </el-badge>
+                </el-dropdown-item>
                 <el-dropdown-item @click="router.push('/profile')">个人资料</el-dropdown-item>
                 <el-dropdown-item v-if="userInfo.role === 'ADMIN'" @click="router.push('/admin')">进入后台</el-dropdown-item>
                 <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
@@ -73,8 +81,8 @@
       </div>
 
       <el-row :gutter="20" class="product-grid">
-        <el-col :span="6" v-for="item in productList" :key="item.id" style="margin-bottom: 20px;">
-          <el-card shadow="hover" :body-style="{ padding: '0px' }" class="product-card">
+        <el-col :span="6" v-for="(item, index) in productList" :key="item.id" style="margin-bottom: 20px;">
+          <el-card shadow="hover" :body-style="{ padding: '0px' }" class="product-card" :style="{ '--i': index }">
             <div class="image-placeholder" :style="{ background: item.bgColor }">
               <el-icon v-if="!item.image && !item.imageUrl" size="40" color="#fff"><Picture /></el-icon>
               <img v-else :src="getImageUrl(item.image || item.imageUrl)" class="product-img" />
@@ -118,11 +126,15 @@
             :headers="uploadHeaders"
             :show-file-list="false"
             :on-success="handleUploadSuccess"
+            :on-error="handleUploadError"
+            :before-upload="beforeImageUpload"
+            accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
             name="file"
           >
             <img v-if="publishForm.image" :src="getImageUrl(publishForm.image)" class="avatar" />
             <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
           </el-upload>
+          <div class="upload-limit-hint">支持 JPG/PNG/WEBP/GIF，大小不超过 5MB</div>
         </el-form-item>
 
         <el-form-item label="商品名称" required><el-input v-model="publishForm.name" placeholder="请输入核心关键字" /></el-form-item>
@@ -249,10 +261,22 @@ const publishVisible = ref(false)
 const publishLoading = ref(false)
 const publishForm = ref({ name: '', description: '', category: '其他闲置', price: 0, originalPrice: 0, image: '' })
 
-const localToken = localStorage.getItem('token') || localStorage.getItem('jiejie_assignment_token') || '';
-const uploadHeaders = {
-  token: localToken,
-  Authorization: localToken 
+const localToken = localStorage.getItem('token') || localStorage.getItem('jiejie_assignment_token') || ''
+const uploadHeaders = localToken ? { Authorization: `Bearer ${localToken}` } : {}
+const MAX_IMAGE_MB = 5
+
+const beforeImageUpload = (rawFile) => {
+  const isImage = rawFile.type?.startsWith('image/')
+  if (!isImage) {
+    ElMessage.error('只能上传图片文件')
+    return false
+  }
+  const isLtLimit = rawFile.size / 1024 / 1024 <= MAX_IMAGE_MB
+  if (!isLtLimit) {
+    ElMessage.error(`图片大小不能超过 ${MAX_IMAGE_MB}MB`)
+    return false
+  }
+  return true
 }
 
 const handleUploadSuccess = (res) => {
@@ -262,6 +286,10 @@ const handleUploadSuccess = (res) => {
   } else {
     ElMessage.error(res.msg || '图片上传失败')
   }
+}
+
+const handleUploadError = () => {
+  ElMessage.error(`上传失败，请确认格式正确且大小不超过 ${MAX_IMAGE_MB}MB`)
 }
 
 const submitPublish = async () => {
@@ -407,29 +435,60 @@ const handleLogout = () => {
 </script>
 
 <style scoped>
-.mall-container { min-height: 100vh; background-color: #f4f4f4; }
-.mall-header { background-color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.06); position: sticky; top: 0; z-index: 100; padding: 0; }
-.header-content { max-width: 1200px; margin: 0 auto; height: 60px; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; }
-.logo { display: flex; align-items: center; gap: 10px; cursor: pointer; }
-.logo-text { font-size: 22px; font-weight: bold; color: #409EFF; }
-.search-box { width: 400px; }
-.user-actions { display: flex; align-items: center; gap: 25px; }
+.mall-container {
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 420px at 10% -10%, rgba(31, 122, 111, 0.18), transparent 60%),
+    radial-gradient(700px 320px at 90% 5%, rgba(244, 162, 97, 0.2), transparent 60%),
+    linear-gradient(180deg, #f8f4ee 0%, #eef4f8 55%, #edf3f7 100%);
+}
+.mall-header {
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(31, 122, 111, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: 0;
+}
+.header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  height: 64px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.logo-text {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif;
+  color: var(--brand);
+  letter-spacing: 0.6px;
+}
+.search-box { width: 420px; }
+.search-input :deep(.el-input__wrapper) {
+  border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(31, 122, 111, 0.08);
+}
+.user-actions { display: flex; align-items: center; gap: 22px; }
 .user-profile { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-.nickname { font-size: 14px; color: #606266; }
-.action-icon { color: #606266; cursor: pointer; }
-.action-icon:hover { color: #409EFF; }
+.nickname { font-size: 14px; color: var(--muted); }
+.action-icon { color: var(--muted); cursor: pointer; }
+.action-icon:hover { color: var(--brand); }
 .msg-badge :deep(.el-badge__content) { top: 2px; right: 2px; }
-.msg-badge {
-  position: relative;
-  z-index: 10;
-}
-.msg-badge :deep(.el-badge__content) {
-  z-index: 11;
-}
-.avatar-badge {
-  position: relative;
-  z-index: 12;
-}
+.msg-badge { position: relative; z-index: 10; }
+.msg-badge :deep(.el-badge__content) { z-index: 11; }
+.avatar-badge { position: relative; z-index: 12; }
 .avatar-badge :deep(.el-badge__content) {
   transform: translate(6px, -6px);
   min-width: 12px;
@@ -439,44 +498,95 @@ const handleLogout = () => {
   font-size: 9px;
   z-index: 13;
 }
-.mall-main { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
-.banner-carousel { border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
-.banner-content { height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-.banner-content h2 { font-size: 36px; margin: 0 0 10px 0; }
-.category-tabs { background: #fff; padding: 10px 20px 0; border-radius: 8px; margin-bottom: 20px; }
-.product-card { border-radius: 8px; border: none; transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; height: 100%; display: flex; flex-direction: column;}
-.product-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
-.image-placeholder { height: 200px; display: flex; justify-content: center; align-items: center; position: relative; overflow: hidden; }
+.menu-item-badge :deep(.el-badge__content) {
+  transform: translate(8px, -6px);
+}
+.mall-main { max-width: 1200px; margin: 24px auto; padding: 0 20px 40px; }
+.banner-carousel { border-radius: var(--radius-lg); overflow: hidden; margin-bottom: 20px; box-shadow: var(--shadow-1); }
+.banner-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  background-image: radial-gradient(600px 300px at 20% 20%, rgba(255,255,255,0.2), transparent 50%);
+}
+.banner-content h2 {
+  font-size: 38px;
+  margin: 0 0 10px 0;
+  font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif;
+}
+.category-tabs {
+  background: rgba(255, 255, 255, 0.92);
+  padding: 10px 20px 0;
+  border-radius: var(--radius-md);
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-1);
+}
+.product-card {
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(31, 122, 111, 0.08);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  cursor: pointer;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-1);
+  animation: floatIn 0.6s ease both;
+  animation-delay: calc(var(--i) * 40ms);
+}
+.product-card:hover { transform: translateY(-6px); box-shadow: var(--shadow-2); }
+.image-placeholder {
+  height: 200px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(31, 122, 111, 0.25), rgba(244, 162, 97, 0.35));
+}
 .product-img { width: 100%; height: 100%; object-fit: cover; }
-.product-info { padding: 14px; flex: 1; display: flex; flex-direction: column;}
-.title { font-size: 15px; font-weight: bold; color: #333; margin: 0 0 5px 0; }
-.desc { font-size: 12px; color: #999; margin: 0 0 10px 0; line-height: 1.5; min-height: 36px;}
+.product-info { padding: 16px; flex: 1; display: flex; flex-direction: column; }
+.title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2a37;
+  margin: 0 0 6px 0;
+  font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif;
+}
+.desc { font-size: 12px; color: #7b8794; margin: 0 0 10px 0; line-height: 1.6; min-height: 36px; }
 .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
 .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.price-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; margin-top: auto;}
-.price { font-size: 20px; color: #f56c6c; font-weight: bold; }
-.original-price { font-size: 12px; color: #999; text-decoration: line-through; }
-
-/* 👉 新增的面交地址样式 */
-.location-tag { font-size: 12px; color: #909399; margin-bottom: 8px; display: flex; align-items: center; gap: 4px; }
-
-.seller-info { border-top: 1px solid #f5f5f5; padding-top: 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.price-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; margin-top: auto; }
+.price { font-size: 20px; color: #e76f51; font-weight: 700; }
+.original-price { font-size: 12px; color: #a1a7b3; text-decoration: line-through; }
+.location-tag { font-size: 12px; color: #6b7280; margin-bottom: 8px; display: flex; align-items: center; gap: 4px; }
+.seller-info { border-top: 1px solid rgba(31, 122, 111, 0.08); padding-top: 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .seller-tag { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; }
-.seller-name { font-size: 12px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.seller-name { font-size: 12px; color: #556070; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .seller-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.empty-cart { text-align: center; color: #999; margin-top: 80px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.empty-cart { text-align: center; color: #909399; margin-top: 80px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .cart-list { display: flex; flex-direction: column; height: 100%; }
 .cart-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid #eee; gap: 15px; }
-.cart-item-img { width: 60px; height: 60px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+.cart-item-img { width: 60px; height: 60px; object-fit: cover; border-radius: 10px; flex-shrink: 0; }
 .cart-item-img.placeholder { background: #f0f2f5; display: flex; justify-content: center; align-items: center; color: #909399; font-size: 20px; }
 .cart-item-info { flex: 1; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
 .cart-item-title { margin: 0 0 8px 0; font-size: 14px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cart-item-price { color: #f56c6c; font-weight: bold; }
+.cart-item-price { color: #e76f51; font-weight: 700; }
 .cart-footer { margin-top: auto; padding-top: 20px; border-top: 2px solid #eee; }
-.total-price { font-size: 16px; font-weight: bold; margin-bottom: 15px; text-align: right; }
-.total-price span { color: #f56c6c; font-size: 24px; }
-:deep(.avatar-uploader .el-upload) { border: 1px dashed var(--el-border-color); border-radius: 6px; cursor: pointer; position: relative; overflow: hidden; transition: var(--el-transition-duration-fast); }
+.total-price { font-size: 16px; font-weight: 700; margin-bottom: 15px; text-align: right; }
+.total-price span { color: #e76f51; font-size: 24px; }
+:deep(.avatar-uploader .el-upload) { border: 1px dashed var(--el-border-color); border-radius: 10px; cursor: pointer; position: relative; overflow: hidden; transition: var(--el-transition-duration-fast); }
 :deep(.avatar-uploader .el-upload:hover) { border-color: var(--el-color-primary); }
 :deep(.avatar-uploader-icon) { font-size: 28px; color: #8c939d; width: 178px; height: 178px; text-align: center; }
+.upload-limit-hint { margin-top: 8px; color: #8c939d; font-size: 12px; line-height: 1.4; }
 .avatar { width: 178px; height: 178px; display: block; object-fit: cover; }
+
+@keyframes floatIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 </style>

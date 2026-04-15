@@ -3,6 +3,7 @@ package com.jiejie.order.controller;
 import com.jiejie.common.Result;
 import com.jiejie.order.entity.Cart;
 import com.jiejie.order.mapper.CartMapper;
+import com.jiejie.order.security.AuthContext;
 import com.jiejie.product.entity.Product;
 import com.jiejie.product.mapper.ProductMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +27,7 @@ public class CartController {
      */
     @GetMapping("/list")
     public Result getCartList(HttpServletRequest request) {
-        String currentUsername = (String) request.getAttribute("currentUsername");
+        String currentUsername = AuthContext.currentUsername(request);
         if (currentUsername == null || currentUsername.isEmpty()) {
             return Result.error("未获取到登录状态");
         }
@@ -43,8 +44,8 @@ public class CartController {
      */
     @PostMapping("/add")
     public Result addToCart(@RequestParam("productId") Long productId, HttpServletRequest request) {
-        String currentUsername = (String) request.getAttribute("currentUsername");
-        Long currentUserId = (Long) request.getAttribute("currentUserId");
+        String currentUsername = AuthContext.currentUsername(request);
+        Long currentUserId = AuthContext.currentUserId(request);
         if (currentUsername == null || currentUsername.isEmpty()) {
             return Result.error("未获取到登录状态");
         }
@@ -83,7 +84,7 @@ public class CartController {
             @RequestParam(value = "productId", required = false) Long productId,
             HttpServletRequest request) {
 
-        String currentUsername = (String) request.getAttribute("currentUsername");
+        String currentUsername = AuthContext.currentUsername(request);
         if (currentUsername == null || currentUsername.isEmpty()) {
             return Result.error("未获取到登录状态");
         }
@@ -125,7 +126,7 @@ public class CartController {
      */
     @PostMapping("/clear")
     public Result clearCart(HttpServletRequest request) {
-        String currentUsername = (String) request.getAttribute("currentUsername");
+        String currentUsername = AuthContext.currentUsername(request);
         if (currentUsername == null || currentUsername.isEmpty()) {
             return Result.error("未获取到登录状态");
         }

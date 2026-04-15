@@ -11,6 +11,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Locale;
 import java.util.List;
 import java.util.UUID;
 
@@ -44,14 +45,17 @@ public class ProductController {
         if (userIdAttr != null) {
             realUserId = Long.parseLong(userIdAttr.toString());
         } else {
-            // 如果拦截器还没生效，我们从 Header 的 token 里手动解析一次
-            String token = request.getHeader("token");
-            if (token != null && !token.isEmpty()) {
-                try {
-                    // 使用你的 JwtUtils 解析出用户 ID
-                    realUserId = JwtUtils.getUserId(token);
-                } catch (Exception e) {
-                    return Result.error("登录已过期，请重新登录后再发布");
+            // 如果过滤器还没生效，我们从 Authorization 头里手动解析一次
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring("Bearer ".length()).trim();
+                if (!token.isEmpty()) {
+                    try {
+                        // 使用你的 JwtUtils 解析出用户 ID
+                        realUserId = JwtUtils.getUserId(token);
+                    } catch (Exception e) {
+                        return Result.error("登录已过期，请重新登录后再发布");
+                    }
                 }
             }
         }
@@ -88,13 +92,44 @@ public class ProductController {
         try {
             File directory = new File(realUploadPath);
             if (!directory.exists()) directory.mkdirs();
-            String fileName = UUID.randomUUID().toString().replace("-", "") + ".jpg";
+            String ext = resolveImageExtension(file);
+            if (ext == null) {
+                return Result.error("仅支持 jpg/jpeg/png/webp/gif 图片");
+            }
+
+            String fileName = UUID.randomUUID().toString().replace("-", "") + "." + ext;
             File dest = new File(directory, fileName);
             file.transferTo(dest);
             return Result.success("/images/" + fileName);
         } catch (IOException e) {
             return Result.error("文件保存失败");
         }
+    }
+
+    private String resolveImageExtension(MultipartFile file) {
+        String originalName = file.getOriginalFilename();
+        if (originalName != null && originalName.contains(".")) {
+            String rawExt = originalName.substring(originalName.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
+            if (List.of("jpg", "jpeg", "png", "webp", "gif").contains(rawExt)) {
+                return "jpeg".equals(rawExt) ? "jpg" : rawExt;
+            }
+            if ("jfif".equals(rawExt)) {
+                return "jpg";
+            }
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null) {
+            return null;
+        }
+        String mime = contentType.toLowerCase(Locale.ROOT);
+        return switch (mime) {
+            case "image/jpeg", "image/jpg", "image/pjpeg" -> "jpg";
+            case "image/png", "image/x-png" -> "png";
+            case "image/webp" -> "webp";
+            case "image/gif" -> "gif";
+            default -> null;
+        };
     }
 
     // --- 管理员接口 ---

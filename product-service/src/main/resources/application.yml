@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: product-service # 注册到 Nacos 的名字 (与 Gateway 里的路由配置对应)
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
   cloud:
     nacos:
       discovery:

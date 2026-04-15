@@ -15,8 +15,8 @@ request.interceptors.request.use(
     const token = localStorage.getItem('token')
     
     if (token) {
-      // 如果有，就塞进请求头里。注意这里属性名必须是 'token'，跟后端保持一致
-      config.headers['token'] = token
+      // 标准做法：Authorization: Bearer <token>
+      config.headers['Authorization'] = `Bearer ${token}`
     }
     
     return config

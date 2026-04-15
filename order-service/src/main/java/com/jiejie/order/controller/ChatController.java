@@ -11,6 +11,7 @@ import com.jiejie.order.mapper.ChatThreadReadMapper;
 import com.jiejie.order.mapper.OrderMapper;
 import com.jiejie.order.mapper.PrivateMessageMapper;
 import com.jiejie.order.mapper.UserMapper;
+import com.jiejie.order.security.AuthContext;
 import com.jiejie.product.entity.Product;
 import com.jiejie.product.mapper.ProductMapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -49,7 +50,7 @@ public class ChatController {
      */
     @GetMapping("/inbox")
     public Result inbox(HttpServletRequest request) {
-        Long uid = (Long) request.getAttribute("currentUserId");
+        Long uid = AuthContext.currentUserId(request);
         if (uid == null) {
             return Result.error("未登录");
         }
@@ -65,7 +66,7 @@ public class ChatController {
                           @RequestParam(value = "threadId", required = false) Long threadIdParam,
                           @RequestParam(value = "productId", required = false) Long productId,
                           @RequestParam(value = "orderId", required = false) Long orderId) {
-        Long uid = (Long) request.getAttribute("currentUserId");
+        Long uid = AuthContext.currentUserId(request);
         if (uid == null) {
             return Result.error("未登录");
         }
@@ -190,7 +191,7 @@ public class ChatController {
     public Result listMessages(HttpServletRequest request,
                                @RequestParam("threadId") Long threadId,
                                @RequestParam(value = "orderId", required = false) Long orderId) {
-        Long uid = (Long) request.getAttribute("currentUserId");
+        Long uid = AuthContext.currentUserId(request);
         if (uid == null) {
             return Result.error("未登录");
         }
@@ -218,7 +219,7 @@ public class ChatController {
 
     @GetMapping("/unread-count")
     public Result unreadCount(HttpServletRequest request) {
-        Long uid = (Long) request.getAttribute("currentUserId");
+        Long uid = AuthContext.currentUserId(request);
         if (uid == null) {
             return Result.error("未登录");
         }
@@ -228,7 +229,7 @@ public class ChatController {
 
     @PostMapping("/send")
     public Result send(HttpServletRequest request, @RequestBody Map<String, Object> body) {
-        Long uid = (Long) request.getAttribute("currentUserId");
+        Long uid = AuthContext.currentUserId(request);
         if (uid == null) {
             return Result.error("未登录");
         }

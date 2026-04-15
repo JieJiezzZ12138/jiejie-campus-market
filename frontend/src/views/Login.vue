@@ -134,7 +134,7 @@ const handleLogin = () => {
     loading.value = true
     try {
       // 发送 JSON 格式数据
-      const res = await request.post('/user/login', {
+      const res = await request.post('/auth/login', {
         username: loginForm.username,
         password: loginForm.password
       })
@@ -180,7 +180,7 @@ const handleRegister = () => {
     if (!valid) return
     registerLoading.value = true
     try {
-      const res = await request.post('/user/register', {
+      const res = await request.post('/auth/register', {
         username: registerForm.username.trim(),
         password: registerForm.password,
         nickname: registerForm.nickname?.trim() || undefined,
@@ -198,18 +198,46 @@ const handleRegister = () => {
 </script>
 
 <style scoped>
-.login-wrapper { height: 100vh; display: flex; justify-content: center; align-items: center; background-color: #f5f7f9; background-image: radial-gradient(#d2d9e0 1px, transparent 1px); background-size: 25px 25px; }
-.login-box { width: 400px; padding: 45px; background: #fff; border-radius: 12px; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08); }
+.login-wrapper {
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background:
+    radial-gradient(700px 380px at 15% 0%, rgba(31, 122, 111, 0.18), transparent 60%),
+    radial-gradient(600px 300px at 90% 10%, rgba(244, 162, 97, 0.2), transparent 60%),
+    linear-gradient(180deg, #f8f4ee 0%, #eef4f8 100%);
+}
+.login-box {
+  width: 420px;
+  padding: 45px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+  border: 1px solid rgba(31, 122, 111, 0.08);
+  animation: floatIn 0.6s ease both;
+}
 .login-tabs { margin-top: 8px; }
 .login-tabs :deep(.el-tabs__header) { margin-bottom: 22px; }
 .login-tabs :deep(.el-tabs__item) { font-size: 15px; }
-.login-logo { text-align: center; margin-bottom: 35px; }
-.login-logo h1 { font-size: 24px; color: #2c3e50; margin: 15px 0 8px; font-weight: 600; }
-.login-logo p { font-size: 11px; color: #a0a0a0; text-transform: uppercase; letter-spacing: 1.5px; }
+.login-logo { text-align: center; margin-bottom: 30px; }
+.login-logo h1 {
+  font-size: 24px;
+  color: #1f2a37;
+  margin: 15px 0 8px;
+  font-weight: 700;
+  font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif;
+}
+.login-logo p { font-size: 11px; color: #8d99a8; text-transform: uppercase; letter-spacing: 1.5px; }
 .login-options { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
-.submit-btn { width: 100%; height: 44px; font-size: 16px; letter-spacing: 1px; border-radius: 6px; }
-.login-footer { margin-top: 40px; text-align: center; border-top: 1px solid #f0f2f5; padding-top: 20px; }
-.copyright { color: #909399; font-size: 13px; margin: 0; }
-.copyright strong { color: #409EFF; }
-.project-tag { color: #bdc3c7; font-size: 11px; margin: 6px 0 0; }
+.submit-btn { width: 100%; height: 44px; font-size: 16px; letter-spacing: 1px; border-radius: 10px; }
+.login-footer { margin-top: 36px; text-align: center; border-top: 1px solid #eef2f6; padding-top: 20px; }
+.copyright { color: #7b8794; font-size: 13px; margin: 0; }
+.copyright strong { color: var(--brand); }
+.project-tag { color: #aab4c0; font-size: 11px; margin: 6px 0 0; }
+
+@keyframes floatIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 </style>

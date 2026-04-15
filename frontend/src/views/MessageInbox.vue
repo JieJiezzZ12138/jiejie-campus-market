@@ -106,15 +106,21 @@ onActivated(() => {
   margin: 0 auto;
   padding: 20px;
   min-height: 100vh;
-  background: #f5f7fa;
+  background:
+    radial-gradient(800px 360px at 10% 0%, rgba(31, 122, 111, 0.14), transparent 60%),
+    linear-gradient(180deg, #f8f4ee 0%, #eef4f8 100%);
 }
 .page-title {
-  font-weight: 600;
-  font-size: 16px;
+  font-weight: 700;
+  font-size: 18px;
+  font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif;
 }
 .inbox-card {
   margin-top: 16px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(31, 122, 111, 0.08);
+  box-shadow: var(--shadow-1);
+  background: rgba(255, 255, 255, 0.95);
 }
 .card-h {
   display: flex;
@@ -124,6 +130,9 @@ onActivated(() => {
 }
 .inbox-table :deep(tbody tr) {
   cursor: pointer;
+}
+.inbox-table :deep(th) {
+  background: rgba(31, 122, 111, 0.06);
 }
 .inbox-table :deep(.row-unread td) {
   background: #fff7e6 !important;

@@ -16,6 +16,7 @@ import com.jiejie.order.mapper.OrderMapper;
 import com.jiejie.order.mapper.OrderNoticeMapper;
 import com.jiejie.order.mapper.PrivateMessageMapper;
 import com.jiejie.order.mapper.UserMapper;
+import com.jiejie.order.security.AuthContext;
 import com.jiejie.product.mapper.ProductMapper;
 import jakarta.servlet.http.HttpServletRequest; // 👈 必须引入请求对象，用来拿 Token 里的身份
 import org.springframework.beans.factory.annotation.Autowired;
@@ -72,8 +73,8 @@ public class OrderController {
                            @RequestParam("totalAmount") Double totalAmount) {
 
         // 👉 核心安全升级：从拦截器口袋里拿出绝对真实的身份
-        Long currentUserId = (Long) request.getAttribute("currentUserId");
-        String currentUsername = (String) request.getAttribute("currentUsername");
+        Long currentUserId = AuthContext.currentUserId(request);
+        String currentUsername = AuthContext.currentUsername(request);
 
         if (currentUserId == null || currentUsername == null) {
             return Result.error("未获取到安全登录状态，请重新登录");
@@ -138,7 +139,7 @@ public class OrderController {
      */
     @GetMapping("/detail")
     public Result orderDetail(HttpServletRequest request, @RequestParam("orderId") Long orderId) {
-        Long currentUserId = (Long) request.getAttribute("currentUserId");
+        Long currentUserId = AuthContext.currentUserId(request);
         if (currentUserId == null) {
             return Result.error("未获取到登录状态");
         }
@@ -159,7 +160,7 @@ public class OrderController {
     @GetMapping("/list")
     public Result getOrderList(HttpServletRequest request,
                                @RequestParam(value = "scope", defaultValue = "buyer") String scope) {
-        Long currentUserId = (Long) request.getAttribute("currentUserId");
+        Long currentUserId = AuthContext.currentUserId(request);
         if (currentUserId == null) {
             return Result.error("未获取到登录状态");
         }
@@ -183,7 +184,7 @@ public class OrderController {
      */
     @PostMapping("/pay")
     public Result payOrder(HttpServletRequest request, @RequestParam("orderId") Long orderId) {
-        Long currentUserId = (Long) request.getAttribute("currentUserId");
+        Long currentUserId = AuthContext.currentUserId(request);
         if (currentUserId == null) {
             return Result.error("请先登录后再支付");
         }
@@ -216,7 +217,7 @@ public class OrderController {
      */
     @PostMapping("/ship")
     public Result shipOrder(HttpServletRequest request, @RequestParam("orderId") Long orderId) {
-        Long currentUserId = (Long) request.getAttribute("currentUserId");
+        Long currentUserId = AuthContext.currentUserId(request);
         if (currentUserId == null) {
             return Result.error("请先登录");
         }
@@ -248,7 +249,7 @@ public class OrderController {
      */
     @PostMapping("/receive")
     public Result receiveOrder(HttpServletRequest request, @RequestParam("orderId") Long orderId) {
-        Long currentUserId = (Long) request.getAttribute("currentUserId");
+        Long currentUserId = AuthContext.currentUserId(request);
         if (currentUserId == null) {
             return Result.error("请先登录");
         }
@@ -280,7 +281,7 @@ public class OrderController {
      */
     @GetMapping("/notice/unread-count")
     public Result orderNoticeUnread(HttpServletRequest request) {
-        Long currentUserId = (Long) request.getAttribute("currentUserId");
+        Long currentUserId = AuthContext.currentUserId(request);
         if (currentUserId == null) {
             return Result.error("未获取到登录状态");
         }
@@ -297,7 +298,7 @@ public class OrderController {
     public Result orderNoticeList(HttpServletRequest request,
                                   @RequestParam("scope") String scope,
                                   @RequestParam(value = "limit", defaultValue = "50") int limit) {
-        Long currentUserId = (Long) request.getAttribute("currentUserId");
+        Long currentUserId = AuthContext.currentUserId(request);
         if (currentUserId == null) {
             return Result.error("未获取到登录状态");
         }
@@ -311,7 +312,7 @@ public class OrderController {
 
     @PostMapping("/notice/read")
     public Result orderNoticeRead(HttpServletRequest request, @RequestParam("id") Long id) {
-        Long currentUserId = (Long) request.getAttribute("currentUserId");
+        Long currentUserId = AuthContext.currentUserId(request);
         if (currentUserId == null) {
             return Result.error("未获取到登录状态");
         }
@@ -324,7 +325,7 @@ public class OrderController {
 
     @PostMapping("/notice/read-all")
     public Result orderNoticeReadAll(HttpServletRequest request, @RequestParam("scope") String scope) {
-        Long currentUserId = (Long) request.getAttribute("currentUserId");
+        Long currentUserId = AuthContext.currentUserId(request);
         if (currentUserId == null) {
             return Result.error("未获取到登录状态");
         }
@@ -368,7 +369,7 @@ public class OrderController {
      */
     @PostMapping("/feedback")
     public Result submitFeedback(HttpServletRequest request, @RequestBody Map<String, Object> body) {
-        Long currentUserId = (Long) request.getAttribute("currentUserId");
+        Long currentUserId = AuthContext.currentUserId(request);
         if (currentUserId == null) {
             return Result.error("请先登录");
         }
@@ -409,7 +410,7 @@ public class OrderController {
      */
     @GetMapping("/admin/feedback-order-view")
     public Result adminFeedbackOrderView(HttpServletRequest request, @RequestParam("orderId") Long orderId) {
-        Long uid = (Long) request.getAttribute("currentUserId");
+        Long uid = AuthContext.currentUserId(request);
         if (uid == null) {
             return Result.error("未登录");
         }

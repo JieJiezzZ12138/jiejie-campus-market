@@ -55,75 +55,51 @@
       </el-tabs>
 
       <el-table :data="orderList" v-loading="loading" style="width: 100%" border stripe :row-class-name="orderRowClass">
-        <el-table-column label="订单编号" prop="orderNo" width="180" />
-
-        <el-table-column label="商品信息">
+        <el-table-column label="订单信息" min-width="680">
           <template #default="scope">
-            <div class="product-info">
-              <el-icon v-if="!scope.row.productImage"><Picture /></el-icon>
-              <img v-else :src="scope.row.productImage" class="p-img" />
-              <span class="p-name">{{ scope.row.productName || '二手商品' }}</span>
+            <div class="order-info-two-rows">
+              <div class="order-info-line order-info-line-top">
+                <div class="thumb-cell">
+                  <el-icon v-if="!scope.row.productImage"><Picture /></el-icon>
+                  <el-image
+                    v-else
+                    :src="getImageUrl(scope.row.productImage)"
+                    class="p-img"
+                    fit="cover"
+                  >
+                    <template #error>
+                      <div class="p-img p-img-fallback">
+                        <el-icon><Picture /></el-icon>
+                      </div>
+                    </template>
+                  </el-image>
+                </div>
+                <span class="p-name p-name-full">{{ scope.row.productName || '二手商品' }}</span>
+                <span class="price">￥{{ scope.row.totalAmount }}</span>
+                <el-tag :type="statusTagType(scope.row.orderStatus)">
+                  {{ statusText(scope.row.orderStatus) }}
+                </el-tag>
+              </div>
+
+              <div class="order-info-line order-info-line-bottom">
+                <span>订单号：{{ scope.row.orderNo || '-' }}</span>
+                <span>下单时间：{{ scope.row.createTime ? new Date(scope.row.createTime).toLocaleString() : '-' }}</span>
+                <span>
+                  对方：{{ orderScope === 'buyer'
+                    ? (scope.row.sellerNickname || '卖家')
+                    : (scope.row.buyerNickname || '买家') }}
+                  （{{ orderScope === 'buyer'
+                    ? (scope.row.sellerPhone || scope.row.sellerUsername || '-')
+                    : (scope.row.buyerPhone || scope.row.buyerUsername || '-') }}）
+                </span>
+                <span>买家地址：{{ scope.row.buyerAddress || '-' }}</span>
+                <span>卖家地址：{{ scope.row.sellerAddress || '-' }}</span>
+              </div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="金额" width="120">
-          <template #default="scope">
-            <span class="price">￥{{ scope.row.totalAmount }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="下单时间" prop="createTime" width="180">
-          <template #default="scope">
-            {{ scope.row.createTime ? new Date(scope.row.createTime).toLocaleString() : '-' }}
-          </template>
-        </el-table-column>
-
-        <el-table-column label="对方信息" width="200">
-          <template #default="scope">
-            <div class="user-info">
-              <div class="user-name">
-                {{ orderScope === 'buyer'
-                  ? (scope.row.sellerNickname || '卖家')
-                  : (scope.row.buyerNickname || '买家') }}
-              </div>
-              <div class="user-contact">
-                电话/账号：{{ orderScope === 'buyer'
-                  ? (scope.row.sellerPhone || scope.row.sellerUsername || '-')
-                  : (scope.row.buyerPhone || scope.row.buyerUsername || '-') }}
-              </div>
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="买家地址" width="180">
-          <template #default="scope">
-            <el-tag
-              v-if="orderScope === 'seller' && scope.row.buyerAddress"
-              type="warning"
-              effect="plain"
-            >
-              {{ scope.row.buyerAddress }}
-            </el-tag>
-            <span v-else>{{ scope.row.buyerAddress || '-' }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="卖家地址" width="180">
-          <template #default="scope">
-            {{ scope.row.sellerAddress || '-' }}
-          </template>
-        </el-table-column>
-
-        <el-table-column label="状态" width="130">
-          <template #default="scope">
-            <el-tag :type="statusTagType(scope.row.orderStatus)">
-              {{ statusText(scope.row.orderStatus) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="操作" width="300" fixed="right">
+        <el-table-column label="操作" width="260" fixed="right">
           <template #default="scope">
             <el-space wrap>
               <el-button type="primary" link size="small" @click="openChat(scope.row)">
@@ -354,6 +330,15 @@ const statusTagType = (s) => {
   if (s === 2) return 'success'
   if (s === 3) return 'success'
   return 'info'
+}
+
+const getImageUrl = (url) => {
+  if (!url) return ''
+  if (url.includes('localhost:8080') || url.includes('localhost:8081')) {
+    return url.replace(/8080|8081/g, '8082')
+  }
+  if (url.startsWith('http')) return url
+  return 'http://localhost:8082' + url
 }
 
 const fetchOrders = async () => {
@@ -599,7 +584,9 @@ onBeforeUnmount(() => {
 <style scoped>
 .order-container {
   padding: 20px;
-  background-color: #f9fafc;
+  background:
+    radial-gradient(900px 420px at 10% 0%, rgba(31, 122, 111, 0.14), transparent 60%),
+    linear-gradient(180deg, #f8f4ee 0%, #eef4f8 100%);
   min-height: calc(100vh - 100px);
 }
 .order-tabs {
@@ -609,6 +596,9 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background: linear-gradient(90deg, rgba(31, 122, 111, 0.12), rgba(244, 162, 97, 0.12));
+  padding: 6px 10px;
+  border-radius: 10px;
 }
 .header-left {
   display: flex;
@@ -616,51 +606,84 @@ onBeforeUnmount(() => {
 }
 .title {
   font-size: 18px;
-  font-weight: bold;
-  color: #303133;
-}
-.product-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  font-weight: 700;
+  color: #1f2a37;
+  font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif;
 }
 .p-img {
-  width: 40px;
-  height: 40px;
+  width: 52px;
+  height: 52px;
   border-radius: 4px;
-  object-fit: cover;
+  overflow: hidden;
+}
+.p-img-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f3f4f6;
+  color: #9ca3af;
+}
+.thumb-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .p-name {
   font-weight: 500;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.user-info {
+.p-name-full {
+  max-width: 100%;
+}
+.order-info-two-rows {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 8px;
+  padding: 4px 0;
 }
-.user-name {
-  font-weight: 600;
-  color: #303133;
+.order-info-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
-.user-contact {
+.order-info-line-top {
+  font-size: 14px;
+}
+.order-info-line-bottom {
+  flex-wrap: wrap;
   font-size: 12px;
-  color: #909399;
+  color: #606266;
+  line-height: 1.5;
 }
 .tab-badge :deep(.el-badge__content) {
   transform: translate(6px, -6px);
 }
 .price {
-  color: #f56c6c;
-  font-weight: bold;
+  color: #e76f51;
+  font-weight: 700;
 }
 .box-card {
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(31, 122, 111, 0.08);
+  box-shadow: var(--shadow-1);
+  background: rgba(255, 255, 255, 0.95);
 }
 .feedback-tip {
   font-size: 13px;
   color: #606266;
   line-height: 1.6;
   margin: 0 0 12px;
+}
+.order-tabs :deep(.el-tabs__item) {
+  font-weight: 600;
+}
+:deep(.el-table) {
+  border-radius: 12px;
+  overflow: hidden;
 }
 .order-notice-badge :deep(.el-badge__content) {
   transform: translate(6px, -6px);

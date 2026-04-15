@@ -209,14 +209,17 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #f5f7fa;
+  background:
+    radial-gradient(900px 420px at 10% 0%, rgba(31, 122, 111, 0.14), transparent 60%),
+    linear-gradient(180deg, #f8f4ee 0%, #eef4f8 100%);
 }
 .chat-header {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid rgba(31, 122, 111, 0.08);
   height: 56px !important;
 }
 .header-title {
@@ -226,13 +229,14 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 .header-title .title {
-  font-weight: 600;
-  font-size: 15px;
-  color: #303133;
+  font-weight: 700;
+  font-size: 16px;
+  color: #1f2a37;
+  font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif;
 }
 .header-title .sub {
   font-size: 12px;
-  color: #909399;
+  color: #7b8794;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -255,6 +259,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   max-width: 85%;
+  animation: popIn 0.2s ease;
 }
 .msg-row.other {
   align-self: flex-start;
@@ -265,16 +270,16 @@ onBeforeUnmount(() => {
   align-items: flex-end;
 }
 .bubble {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.9);
   padding: 10px 14px;
-  border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  border-radius: 14px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
   font-size: 14px;
   color: #303133;
   word-break: break-word;
 }
 .msg-row.mine .bubble {
-  background: #409eff;
+  background: linear-gradient(135deg, #1f7a6f, #2a9d8f);
   color: #fff;
 }
 .time {
@@ -286,11 +291,16 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 10px;
   padding: 12px;
-  background: #fff;
-  border-top: 1px solid #ebeef5;
+  background: rgba(255, 255, 255, 0.9);
+  border-top: 1px solid rgba(31, 122, 111, 0.08);
   align-items: flex-end;
 }
 .input-bar :deep(.el-textarea) {
   flex: 1;
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>

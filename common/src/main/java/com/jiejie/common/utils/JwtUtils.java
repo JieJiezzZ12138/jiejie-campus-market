@@ -19,13 +19,18 @@ public class JwtUtils {
     /**
      * 1. 生成 Token
      */
-    public static String generateToken(Long userId, String username) {
+    public static String generateToken(Long userId, String username, String role) {
         return Jwts.builder()
                 .claim("userId", userId)
                 .claim("username", username)
+                .claim("role", role)
                 .setExpiration(new Date(System.currentTimeMillis() + EXPIRE_TIME))
                 .signWith(SECRET_KEY, SignatureAlgorithm.HS256)
                 .compact();
+    }
+
+    public static String generateToken(Long userId, String username) {
+        return generateToken(userId, username, "USER");
     }
 
     /**
@@ -66,5 +71,11 @@ public class JwtUtils {
         Claims claims = parseToken(token);
         if (claims == null) return null;
         return claims.get("username", String.class);
+    }
+
+    public static String getRole(String token) {
+        Claims claims = parseToken(token);
+        if (claims == null) return null;
+        return claims.get("role", String.class);
     }
 }

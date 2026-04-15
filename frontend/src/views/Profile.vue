@@ -20,12 +20,15 @@
             :headers="uploadHeaders"
             :show-file-list="false"
             :on-success="onAvatarSuccess"
+            :on-error="onAvatarError"
+            :before-upload="beforeImageUpload"
+            accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
             name="file"
           >
             <img v-if="form.avatar" :src="getImageUrl(form.avatar)" class="avatar-preview" alt="" />
             <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
           </el-upload>
-          <span class="upload-hint">点击上传，建议正方形图片</span>
+          <span class="upload-hint">点击上传，支持 JPG/PNG/WEBP/GIF，大小不超过 5MB</span>
         </el-form-item>
 
         <el-form-item label="昵称" required>
@@ -68,7 +71,22 @@ const form = reactive({
 })
 
 const localToken = localStorage.getItem('token') || ''
-const uploadHeaders = { token: localToken, Authorization: localToken }
+const uploadHeaders = localToken ? { Authorization: `Bearer ${localToken}` } : {}
+const MAX_IMAGE_MB = 5
+
+const beforeImageUpload = (rawFile) => {
+  const isImage = rawFile.type?.startsWith('image/')
+  if (!isImage) {
+    ElMessage.error('只能上传图片文件')
+    return false
+  }
+  const isLtLimit = rawFile.size / 1024 / 1024 <= MAX_IMAGE_MB
+  if (!isLtLimit) {
+    ElMessage.error(`图片大小不能超过 ${MAX_IMAGE_MB}MB`)
+    return false
+  }
+  return true
+}
 
 const getImageUrl = (url) => {
   if (!url) return ''
@@ -86,6 +104,10 @@ const onAvatarSuccess = (res) => {
   } else {
     ElMessage.error(res.msg || '上传失败')
   }
+}
+
+const onAvatarError = () => {
+  ElMessage.error(`上传失败，请确认格式正确且大小不超过 ${MAX_IMAGE_MB}MB`)
 }
 
 const loadProfile = async () => {
@@ -136,14 +158,19 @@ onMounted(() => {
 <style scoped>
 .profile-page {
   min-height: 100vh;
-  background: #f4f4f4;
+  background:
+    radial-gradient(800px 380px at 10% 0%, rgba(31, 122, 111, 0.16), transparent 60%),
+    linear-gradient(180deg, #f8f4ee 0%, #eef4f8 100%);
   padding: 24px;
   box-sizing: border-box;
 }
 .profile-card {
-  max-width: 560px;
+  max-width: 600px;
   margin: 0 auto;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+  border: 1px solid rgba(31, 122, 111, 0.08);
+  background: rgba(255, 255, 255, 0.95);
 }
 .card-header {
   display: flex;
@@ -152,20 +179,15 @@ onMounted(() => {
 }
 .title {
   font-size: 18px;
-  font-weight: 600;
-  color: #303133;
+  font-weight: 700;
+  color: #1f2a37;
+  font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif;
 }
-.profile-form {
-  padding-top: 8px;
-}
-.upload-hint {
-  margin-left: 12px;
-  font-size: 12px;
-  color: #909399;
-}
+.profile-form { padding-top: 8px; }
+.upload-hint { margin-left: 12px; font-size: 12px; color: #8d99a8; }
 :deep(.avatar-uploader .el-upload) {
-  border: 1px dashed var(--el-border-color);
-  border-radius: 8px;
+  border: 1px dashed rgba(31, 122, 111, 0.4);
+  border-radius: 10px;
   cursor: pointer;
   overflow: hidden;
 }

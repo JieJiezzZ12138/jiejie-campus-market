@@ -9,6 +9,7 @@ public class SysUser {
     private String avatar;
     private String phone;
     private Integer auditStatus; // 0-封禁, 1-正常, 2-待审核
+    private String campusAddress;
 
     // Getters and Setters
     public Long getId() { return id; }
@@ -27,4 +28,6 @@ public class SysUser {
     public void setPhone(String phone) { this.phone = phone; }
     public Integer getAuditStatus() { return auditStatus; }
     public void setAuditStatus(Integer auditStatus) { this.auditStatus = auditStatus; }
+    public String getCampusAddress() { return campusAddress; }
+    public void setCampusAddress(String campusAddress) { this.campusAddress = campusAddress; }
 }
