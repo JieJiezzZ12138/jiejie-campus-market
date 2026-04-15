@@ -18,10 +18,14 @@ jobs:
           cache: maven
 
       - name: Build with Maven
-        run: mvn clean package -DskipTests
+        run: mvn -B -ntp -pl auth-service -am clean package -DskipTests
 
       - name: Build and Push Docker Image
         run: |
+          echo "======== target 内容检查 ========"
+          ls -lah auth-service/target/
+          test -f auth-service/target/auth-service-1.0.0.jar || true
+
           # 1. 登录阿里云容器镜像服务
           echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login --username "${{ secrets.REGISTRY_USER }}" crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com --password-stdin
           
