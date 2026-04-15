@@ -68,6 +68,7 @@ jobs:
               -e SPRING_PROFILES_ACTIVE=prod \
               -e DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
               -e REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}" \
+              -e NACOS_HOST="${{ secrets.NACOS_HOST != '' && secrets.NACOS_HOST || secrets.REMOTE_HOST }}" \
               crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/auth-service:latest
             
             # 5. 清理无用的虚悬镜像释放磁盘空间
