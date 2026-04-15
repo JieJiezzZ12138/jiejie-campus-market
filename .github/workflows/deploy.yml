@@ -45,7 +45,7 @@ jobs:
         with:
           host: ${{ secrets.REMOTE_HOST }}
           username: root
-          password: ${{ secrets.REMOTE_PASSWORD }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login --username ${{ secrets.REGISTRY_USER }} crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com --password-stdin
             
