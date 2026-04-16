@@ -52,11 +52,12 @@ jobs:
             docker run -d \
               --name auth-service-container \
               --network host \
-              -m 220m \
-              --memory-swap 320m \
-              --cpus="0.30" \
+              -m 180m \
+              --memory-swap 260m \
+              --cpus="0.25" \
+              --restart unless-stopped \
               -e SPRING_PROFILES_ACTIVE=prod \
-              -e JAVA_TOOL_OPTIONS="-Xms48m -Xmx96m -Xss256k -XX:MaxDirectMemorySize=24m" \
+              -e JAVA_TOOL_OPTIONS="-Xms32m -Xmx80m -Xss256k -XX:MaxDirectMemorySize=16m" \
               -e DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
               -e REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}" \
               -e NACOS_HOST="${{ secrets.NACOS_HOST != '' && secrets.NACOS_HOST || '127.0.0.1' }}" \
