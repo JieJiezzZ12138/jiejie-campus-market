@@ -52,8 +52,8 @@ jobs:
             docker run -d \
               --name gateway-service-container \
               --network host \
-              -m 256m \
-              --memory-swap 360m \
+              -m 220m \
+              --memory-swap 320m \
               --cpus="0.35" \
               --restart unless-stopped \
               -e SPRING_PROFILES_ACTIVE=prod \
