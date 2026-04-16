@@ -265,7 +265,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted, computed, nextTick, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -278,7 +278,7 @@ const orderList = ref([])
 const loading = ref(false)
 const payDialogVisible = ref(false)
 const payLoading = ref(false)
-const currentOrder = ref({})
+const currentOrder = ref<any>({})
 const orderScope = ref('buyer')
 const shipLoadingId = ref(null)
 const receiveLoadingId = ref(null)

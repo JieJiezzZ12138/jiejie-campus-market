@@ -188,7 +188,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted, computed, watch, onBeforeUnmount, onActivated } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -275,13 +275,30 @@ const beforeImageUpload = (rawFile) => {
   return true
 }
 
-const handleUploadSuccess = (res) => {
-  if (res.code === 200) {
-    publishForm.value.image = res.data
-    ElMessage.success('图片上传成功！')
-  } else {
-    ElMessage.error(res.msg || '图片上传失败')
+const handleUploadSuccess = (rawRes) => {
+  let res = rawRes
+  if (typeof res === 'string') {
+    try {
+      res = JSON.parse(res)
+    } catch (_e) {
+      // keep raw string for fallback below
+    }
   }
+
+  const code = typeof res === 'object' && res ? res.code : 200
+  const data = typeof res === 'object' && res ? res.data : res
+  const imagePath =
+    typeof data === 'string'
+      ? data
+      : data?.url || data?.image || data?.path || data?.fileUrl || data?.filePath || ''
+
+  if (code === 200 && imagePath) {
+    publishForm.value.image = imagePath
+    ElMessage.success('图片上传成功！')
+    return
+  }
+
+  ElMessage.error((typeof res === 'object' && res?.msg) || '图片上传失败')
 }
 
 const handleUploadError = () => {

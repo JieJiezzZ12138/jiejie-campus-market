@@ -1,11 +1,18 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-export const useUserStore = defineStore('user', () => {
-  const token = ref(localStorage.getItem('token') || '')
-  const userInfo = ref(JSON.parse(localStorage.getItem('userInfo') || '{}'))
+type UserInfo = Record<string, unknown>
 
-  const saveLogin = (data) => {
+type LoginPayload = {
+  token: string
+  userInfo: UserInfo
+}
+
+export const useUserStore = defineStore('user', () => {
+  const token = ref<string>(localStorage.getItem('token') || '')
+  const userInfo = ref<UserInfo>(JSON.parse(localStorage.getItem('userInfo') || '{}'))
+
+  const saveLogin = (data: LoginPayload) => {
     token.value = data.token
     userInfo.value = data.userInfo
     localStorage.setItem('token', data.token)

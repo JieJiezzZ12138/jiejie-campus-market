@@ -22,9 +22,9 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import request from './utils/request' // 👈 关键！必须引入封装好的 request，而不是原生 axios
+import request from '../utils/request'
 import { ElMessage } from 'element-plus'
 
 const userList = ref([])

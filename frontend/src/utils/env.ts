@@ -1,4 +1,4 @@
-const trimTrailingSlash = (value = '') => value.replace(/\/+$/, '')
+const trimTrailingSlash = (value = ''): string => value.replace(/\/+$/, '')
 
 const API_BASE = trimTrailingSlash(import.meta.env.VITE_APP_BASE_API || 'http://localhost:8080')
 const IMAGE_BASE = trimTrailingSlash(
@@ -7,7 +7,7 @@ const IMAGE_BASE = trimTrailingSlash(
 
 export const uploadActionUrl = `${API_BASE}/product/upload`
 
-export const resolveImageUrl = (url) => {
+export const resolveImageUrl = (url: string): string => {
   if (!url) return ''
   if (/^https?:\/\//i.test(url)) {
     try {
@@ -15,10 +15,14 @@ export const resolveImageUrl = (url) => {
       if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') {
         return `${IMAGE_BASE}${parsed.pathname}${parsed.search}`
       }
-    } catch (_) {
+    } catch (_e) {
       return url
     }
     return url
   }
-  return `${IMAGE_BASE}${url.startsWith('/') ? url : `/${url}`}`
+  const normalized = url.startsWith('/') ? url : `/${url}`
+  if (normalized.startsWith('/images/')) {
+    return `${API_BASE}${normalized}`
+  }
+  return `${IMAGE_BASE}${normalized}`
 }

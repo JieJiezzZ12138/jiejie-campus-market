@@ -40,7 +40,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, nextTick, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -126,7 +126,7 @@ const loadMessages = async () => {
   if (!threadId.value) return
   loading.value = true
   try {
-    const params = { threadId: threadId.value }
+    const params: any = { threadId: threadId.value }
     if (legacyOrderId.value != null && !Number.isNaN(legacyOrderId.value)) {
       params.orderId = legacyOrderId.value
     }
@@ -145,7 +145,7 @@ const send = async () => {
   if (!text || !threadId.value) return
   sendLoading.value = true
   try {
-    const body = { threadId: threadId.value, content: text }
+    const body: any = { threadId: threadId.value, content: text }
     if (legacyOrderId.value != null && !Number.isNaN(legacyOrderId.value)) {
       body.orderId = legacyOrderId.value
     }
