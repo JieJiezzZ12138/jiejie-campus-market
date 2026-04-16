@@ -1,0 +1,35 @@
+# 统一 application-prod.yml 模板
+# 说明：
+# 1) 所有服务都包含 Nacos + Redis。
+# 2) 只有需要数据库的服务(auth/order/product)启用 datasource 段。
+
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      password: ${REDIS_PASSWORD:}
+      database: 0
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 4
+          min-idle: 1
+
+  # 仅数据库服务保留该段
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/my_system?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:change_me}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 1
+      maximum-pool-size: 3
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
