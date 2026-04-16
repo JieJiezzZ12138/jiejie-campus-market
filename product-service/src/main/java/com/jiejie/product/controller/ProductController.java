@@ -6,6 +6,7 @@ import com.jiejie.product.entity.Product;
 import com.jiejie.product.mapper.ProductMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -21,6 +22,8 @@ public class ProductController {
 
     @Autowired
     private ProductMapper productMapper;
+    @Value("${file.upload-path}")
+    private String uploadPath;
 
     /**
      * 1. 查询商品列表
@@ -88,9 +91,8 @@ public class ProductController {
     @PostMapping("/upload")
     public Result upload(@RequestParam(value = "file") MultipartFile file) {
         if (file.isEmpty()) return Result.error("请选择图片");
-        String realUploadPath = "/Users/jiejie/Desktop/web/my-system-cloud/pictures/";
         try {
-            File directory = new File(realUploadPath);
+            File directory = new File(uploadPath);
             if (!directory.exists()) directory.mkdirs();
             String ext = resolveImageExtension(file);
             if (ext == null) {
