@@ -52,11 +52,12 @@ jobs:
             docker run -d \
               --name gateway-service-container \
               --network host \
-              -m 320m \
-              --memory-swap 420m \
-              --cpus="0.45" \
+              -m 256m \
+              --memory-swap 360m \
+              --cpus="0.35" \
+              --restart unless-stopped \
               -e SPRING_PROFILES_ACTIVE=prod \
-              -e JAVA_TOOL_OPTIONS="-Xms64m -Xmx160m -Xss256k -XX:MaxDirectMemorySize=64m" \
+              -e JAVA_TOOL_OPTIONS="-Xms48m -Xmx128m -Xss256k -XX:MaxDirectMemorySize=48m" \
               -e NACOS_HOST="${{ secrets.NACOS_HOST != '' && secrets.NACOS_HOST || '127.0.0.1' }}" \
               crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/gateway-service:latest
 
