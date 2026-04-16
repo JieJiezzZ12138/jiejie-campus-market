@@ -1,0 +1,63 @@
+name: Deploy Gateway Service
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "gateway-service/**"
+      - "Dockerfile.gateway-service"
+      - ".github/workflows/deploy-gateway-service.yml"
+  workflow_dispatch:
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build Gateway JAR
+        run: mvn -B -ntp -pl gateway-service -am clean package -DskipTests
+
+      - name: Build and Push Image
+        run: |
+          ls -lah gateway-service/target/
+          test -f "$(ls gateway-service/target/gateway-service-*-exec.jar | head -n 1)"
+
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login --username "${{ secrets.REGISTRY_USER }}" crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com --password-stdin
+          docker build -f ./Dockerfile.gateway-service -t crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/gateway-service:latest .
+          docker push crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/gateway-service:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to ECS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login --username "${{ secrets.REGISTRY_USER }}" crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com --password-stdin
+            docker stop gateway-service-container || true
+            docker rm gateway-service-container || true
+            docker pull crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/gateway-service:latest
+
+            docker run -d \
+              --name gateway-service-container \
+              --network host \
+              -m 320m \
+              --memory-swap 420m \
+              --cpus="0.45" \
+              -e SPRING_PROFILES_ACTIVE=prod \
+              -e JAVA_TOOL_OPTIONS="-Xms64m -Xmx160m -Xss256k -XX:MaxDirectMemorySize=64m" \
+              -e NACOS_HOST="${{ secrets.NACOS_HOST != '' && secrets.NACOS_HOST || '127.0.0.1' }}" \
+              crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/gateway-service:latest
+
+            docker image prune -f
