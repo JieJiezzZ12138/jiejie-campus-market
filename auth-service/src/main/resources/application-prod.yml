@@ -1,34 +1,32 @@
 spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
   datasource:
-    url: jdbc:mysql://127.0.0.1:3306/jiejie_cloud?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://127.0.0.1:3306/my_system?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:change_me}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
-      minimum-idle: ${DB_POOL_MIN_IDLE:5}
-      maximum-pool-size: ${DB_POOL_MAX_SIZE:20}
-      connection-timeout: ${DB_POOL_CONN_TIMEOUT:30000}
-      idle-timeout: ${DB_POOL_IDLE_TIMEOUT:600000}
-      max-lifetime: ${DB_POOL_MAX_LIFETIME:1800000}
+      minimum-idle: 1
+      maximum-pool-size: 3
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
   data:
     redis:
-      host: ${REDIS_HOST:127.0.0.1}
-      port: ${REDIS_PORT:6379}
+      host: 127.0.0.1
+      port: 6379
       password: ${REDIS_PASSWORD:}
-      database: ${REDIS_DB:0}
+      database: 0
       lettuce:
         pool:
-          max-active: ${REDIS_POOL_MAX_ACTIVE:20}
-          max-idle: ${REDIS_POOL_MAX_IDLE:10}
-          min-idle: ${REDIS_POOL_MIN_IDLE:2}
+          max-active: 8
+          max-idle: 4
+          min-idle: 1
   jackson:
     default-property-inclusion: non_null
-
-server:
-  tomcat:
-    threads:
-      max: ${TOMCAT_THREADS_MAX:200}
-      min-spare: ${TOMCAT_THREADS_MIN_SPARE:20}
 
 logging:
   level:
