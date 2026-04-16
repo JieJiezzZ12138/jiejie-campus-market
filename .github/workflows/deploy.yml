@@ -57,18 +57,22 @@ jobs:
             # 3. 拉取最新镜像
             docker pull crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/auth-service:latest
             
-            # 4. 运行新容器
-            # --network host: 让容器直接使用宿主机网络(localhost能直接连上Nacos和MySQL)
-            # -m 180m: 严格限制内存，防止服务器 OOM
+            # 4. 运行新容器 (极致内存压缩版)
+            # --network host: 让容器直接使用宿主机网络
+            # -m 256m: 给容器设置 256M 的硬性物理内存限制
+            # --memory-swap 512m: 允许使用一点虚拟内存作为缓冲
+            # JAVA_TOOL_OPTIONS: 强制限制内部 JVM 堆内存为 128M，栈 256K，防止系统 OOM
             docker run -d \
               --name auth-service-container \
               --network host \
-              -m 180m \
+              -m 256m \
+              --memory-swap 512m \
               --cpus="0.5" \
               -e SPRING_PROFILES_ACTIVE=prod \
+              -e JAVA_TOOL_OPTIONS="-Xms64m -Xmx128m -Xss256k -XX:MaxDirectMemorySize=32M" \
               -e DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
               -e REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}" \
-              -e NACOS_HOST="${{ secrets.NACOS_HOST != '' && secrets.NACOS_HOST || secrets.REMOTE_HOST }}" \
+              -e NACOS_HOST="127.0.0.1" \
               crpi-jvx8niudq85i5x0v.cn-beijing.personal.cr.aliyuncs.com/jiejie-proj/auth-service:latest
             
             # 5. 清理无用的虚悬镜像释放磁盘空间
