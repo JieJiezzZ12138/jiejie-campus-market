@@ -49,7 +49,7 @@ public class SecurityConfig {
                 .authorizeExchange(ex -> ex
                         .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .pathMatchers("/auth/login", "/auth/register", "/auth/ping").permitAll()
-                        .pathMatchers("/product/list").permitAll()
+                        .pathMatchers("/product/list", "/images/**").permitAll()
                         .pathMatchers("/auth/admin/**", "/user/admin/**", "/order/admin/**", "/product/admin/**")
                         .hasRole("ADMIN")
                         .anyExchange().authenticated()
