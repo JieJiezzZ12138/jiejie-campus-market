@@ -18,7 +18,7 @@ public interface AdminNotificationMapper {
     @Options(useGeneratedKeys = true, keyProperty = "id")
     void insert(AdminNotification row);
 
-    /** 仅统计「交易反馈」类通知（不再收录用户私信） */
+    /** 仅统计「交易反馈」类通知（不再收录用户消息） */
     @Select("SELECT COUNT(*) FROM admin_notification WHERE is_read = 0 AND preview LIKE '[交易反馈]%'")
     int countUnread();
 

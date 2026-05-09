@@ -55,9 +55,9 @@ public interface OrderMapper {
             "WHERE o.id = #{id}")
     Order findByIdWithProduct(@Param("id") Long id);
 
-    @Update("UPDATE orders SET order_status = 1, pay_time = NOW() " +
+    @Update("UPDATE orders SET order_status = 1, payment_method = #{paymentMethod}, pay_txn_no = #{payTxnNo}, pay_time = NOW() " +
             "WHERE id = #{id} AND buyer_id = #{buyerId} AND order_status = 0")
-    int markPaid(@Param("id") Long id, @Param("buyerId") Long buyerId);
+    int markPaid(@Param("id") Long id, @Param("buyerId") Long buyerId, @Param("paymentMethod") String paymentMethod, @Param("payTxnNo") String payTxnNo);
 
     @Update("UPDATE orders SET order_status = 2 WHERE id = #{id} AND order_status = 1")
     int markShipped(@Param("id") Long id);
@@ -78,7 +78,7 @@ public interface OrderMapper {
     @Select("SELECT * FROM orders WHERE order_no = #{orderNo}")
     Order findByOrderNo(@Param("orderNo") String orderNo);
 
-    /** 同一商品、买家最近一笔订单（用于收件箱/会话补全 orderId，合并历史私信） */
+    /** 同一商品、买家最近一笔订单（用于收件箱/会话补全 orderId，合并历史消息） */
     @Select("SELECT o.*, p.name as productName, p.image as productImage, p.seller_id as sellerId, " +
             "bu.campus_address as buyerAddress, su.campus_address as sellerAddress, " +
             "bu.nickname as buyerNickname, bu.username as buyerUsername, bu.phone as buyerPhone, " +
@@ -118,6 +118,9 @@ public interface OrderMapper {
 
     @Update("UPDATE orders SET order_status = 4 WHERE id = #{id} AND buyer_id = #{buyerId} AND order_status = 0")
     int markCanceled(@Param("id") Long id, @Param("buyerId") Long buyerId);
+
+    @Delete("DELETE FROM orders WHERE id = #{id}")
+    int adminDeleteById(@Param("id") Long id);
 
     @Update("UPDATE orders SET order_status = 5 WHERE id = #{id} AND buyer_id = #{buyerId} AND order_status IN (1,2)")
     int markRefund(@Param("id") Long id, @Param("buyerId") Long buyerId);

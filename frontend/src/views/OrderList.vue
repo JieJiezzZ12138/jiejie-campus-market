@@ -5,15 +5,16 @@
         <div class="card-header">
           <div class="header-left">
             <el-button
+              v-if="!props.adminEmbedded"
               :icon="ArrowLeft"
               circle
-              @click="router.push('/')"
+              @click="handleBack"
               style="margin-right: 15px;"
             />
             <span class="title">我的订单中心</span>
           </div>
           <div class="header-right">
-            <el-button type="primary" link @click="router.push('/profile')">个人资料</el-button>
+            <el-button v-if="!props.adminEmbedded" type="primary" link @click="router.push('/profile')">个人资料</el-button>
             <el-button type="primary" link @click="fetchOrders">刷新列表</el-button>
             <el-badge
               :value="currentScopeNoticeCount"
@@ -27,32 +28,18 @@
         </div>
       </template>
 
-      <el-tabs v-model="orderScope" class="order-tabs" @tab-change="onTabChange">
-        <el-tab-pane name="buyer">
-          <template #label>
-            <el-badge
-              :value="noticeCounts.buyer"
-              :hidden="noticeCounts.buyer === 0"
-              :max="99"
-              class="tab-badge"
-            >
-              <span>我买到的</span>
-            </el-badge>
-          </template>
-        </el-tab-pane>
-        <el-tab-pane name="seller">
-          <template #label>
-            <el-badge
-              :value="noticeCounts.seller"
-              :hidden="noticeCounts.seller === 0"
-              :max="99"
-              class="tab-badge"
-            >
-              <span>我卖出的（待发货等）</span>
-            </el-badge>
-          </template>
-        </el-tab-pane>
-      </el-tabs>
+      <div class="order-tabs" style="margin-bottom:12px;">
+        <el-badge
+          :value="currentScopeNoticeCount"
+          :hidden="currentScopeNoticeCount === 0"
+          :max="99"
+          class="tab-badge"
+        >
+          <span style="font-size:18px;font-weight:700;">
+            {{ orderScope === 'seller' ? '我卖出的订单' : '我买到的订单' }}
+          </span>
+        </el-badge>
+      </div>
 
       <div class="status-filter">
         <span class="status-filter-label">状态筛选</span>
@@ -84,7 +71,7 @@
                     </template>
                   </el-image>
                 </div>
-                <span class="p-name p-name-full">{{ scope.row.productName || '二手商品' }}</span>
+                <span class="p-name p-name-full">{{ scope.row.productName || '商品' }}</span>
                 <span class="price">￥{{ scope.row.totalAmount }}</span>
                 <el-tag :type="statusTagType(scope.row.orderStatus)">
                   {{ statusText(scope.row.orderStatus) }}
@@ -96,14 +83,14 @@
                 <span>下单时间：{{ scope.row.createTime ? new Date(scope.row.createTime).toLocaleString() : '-' }}</span>
                 <span>
                   对方：{{ orderScope === 'buyer'
-                    ? (scope.row.sellerNickname || '卖家')
+                    ? (scope.row.sellerNickname || '商家')
                     : (scope.row.buyerNickname || '买家') }}
                   （{{ orderScope === 'buyer'
                     ? (scope.row.sellerPhone || scope.row.sellerUsername || '-')
                     : (scope.row.buyerPhone || scope.row.buyerUsername || '-') }}）
                 </span>
                 <span>买家地址：{{ scope.row.buyerAddress || '-' }}</span>
-                <span>卖家地址：{{ scope.row.sellerAddress || '-' }}</span>
+                <span>商家地址：{{ scope.row.sellerAddress || '-' }}</span>
               </div>
             </div>
           </template>
@@ -113,7 +100,7 @@
           <template #default="scope">
             <el-space wrap>
               <el-button type="primary" link size="small" @click="openChat(scope.row)">
-                私信
+                消息
               </el-button>
               <el-button type="danger" link size="small" @click="openFeedback(scope.row)">
                 纠纷反馈
@@ -215,7 +202,12 @@
       <div style="text-align: center" v-if="currentOrder">
         <el-icon size="50" color="#E6A23C"><Wallet /></el-icon>
         <h3>确认支付 ￥{{ currentOrder.totalAmount }} 吗？</h3>
-        <p style="color: #909399">支付完成后，卖家将尽快为您发货</p>
+        <el-radio-group v-model="payMethod" style="margin-top:10px;">
+          <el-radio value="ALIPAY">支付宝</el-radio>
+          <el-radio value="WECHAT">微信支付</el-radio>
+          <el-radio value="CAMPUS_COD">货到付款</el-radio>
+        </el-radio-group>
+        <p style="color: #909399">支付完成后，商家将尽快为您发货</p>
       </div>
       <template #footer>
         <el-button @click="payDialogVisible = false">取消</el-button>
@@ -264,7 +256,7 @@
           <template #default="{ row }">
             <el-space size="small">
               <el-button type="primary" link size="small" @click="openOrderDetail(row)">订单详情</el-button>
-              <el-button type="primary" link size="small" @click="openOrderChat(row)">私信</el-button>
+              <el-button type="primary" link size="small" @click="openOrderChat(row)">消息</el-button>
               <el-button
                 v-if="Number(row.isRead) === 0 && canManualRead(row)"
                 type="primary"
@@ -299,22 +291,31 @@
         <el-descriptions-item label="买家">
           {{ orderDetail.buyerNickname || '买家' }} / {{ orderDetail.buyerPhone || orderDetail.buyerUsername || '-' }}
         </el-descriptions-item>
-        <el-descriptions-item label="卖家">
-          {{ orderDetail.sellerNickname || '卖家' }} / {{ orderDetail.sellerPhone || orderDetail.sellerUsername || '-' }}
+        <el-descriptions-item label="商家">
+          {{ orderDetail.sellerNickname || '商家' }} / {{ orderDetail.sellerPhone || orderDetail.sellerUsername || '-' }}
         </el-descriptions-item>
         <el-descriptions-item label="买家地址">
           {{ orderDetail.buyerAddress || '-' }}
         </el-descriptions-item>
-        <el-descriptions-item label="卖家地址">
+        <el-descriptions-item label="商家地址">
           {{ orderDetail.sellerAddress || '-' }}
         </el-descriptions-item>
         <el-descriptions-item label="下单时间">
           {{ orderDetail.createTime ? new Date(orderDetail.createTime).toLocaleString() : '-' }}
         </el-descriptions-item>
+        <el-descriptions-item label="支付方式">
+          {{ orderDetail.paymentMethod || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="支付时间">
+          {{ orderDetail.payTime ? new Date(orderDetail.payTime).toLocaleString() : '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="支付流水号">
+          {{ orderDetail.payTxnNo || '-' }}
+        </el-descriptions-item>
       </el-descriptions>
       <template #footer>
         <el-button @click="orderDetailVisible = false">关闭</el-button>
-        <el-button type="primary" @click="orderDetailChat">私信沟通</el-button>
+        <el-button type="primary" @click="orderDetailChat">消息沟通</el-button>
       </template>
     </el-dialog>
 
@@ -334,17 +335,22 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick, onBeforeUnmount } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Picture, Wallet, ArrowLeft, Refresh } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import { resolveImageUrl } from '../utils/env'
 
 const router = useRouter()
+const route = useRoute()
+const props = withDefaults(defineProps<{ adminEmbedded?: boolean }>(), {
+  adminEmbedded: false
+})
 const orderList = ref([])
 const loading = ref(false)
 const payDialogVisible = ref(false)
 const payLoading = ref(false)
+const payMethod = ref('ALIPAY')
 const currentOrder = ref<any>({})
 const orderScope = ref('buyer')
 const shipLoadingId = ref(null)
@@ -374,6 +380,10 @@ const pageNo = ref(1)
 const pageSize = ref(10)
 let highlightTimer = null
 
+const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}')
+const isAdminUser = userInfo?.role === 'ADMIN' || userInfo?.role === 'SUPER_ADMIN'
+const allowSellerMode = props.adminEmbedded || (isAdminUser && route.query?.from === 'admin')
+
 const currentScopeNoticeCount = computed(() => {
   return orderScope.value === 'seller'
     ? Number(noticeCounts.value?.seller || 0)
@@ -400,7 +410,6 @@ const feedbackText = ref('')
 const feedbackLoading = ref(false)
 const logisticsVisible = ref(false)
 const logisticsData = ref<any>(null)
-
 const statusText = (s) => {
   if (s === 0) return '待支付'
   if (s === 1) return '已支付 / 待发货'
@@ -457,13 +466,8 @@ const fetchOrderNoticeCount = async () => {
   }
 }
 
-const onTabChange = () => {
-  pageNo.value = 1
-  fetchOrders()
-}
-
 const openChat = (row) => {
-  router.push(`/orders/${row.id}/chat`)
+  router.push(allowSellerMode ? `/orders/${row.id}/chat?from=admin` : `/orders/${row.id}/chat`)
 }
 
 const openFeedback = (row) => {
@@ -493,6 +497,7 @@ const submitFeedback = async () => {
 
 const handlePay = (order) => {
   currentOrder.value = order
+  payMethod.value = 'ALIPAY'
   payDialogVisible.value = true
 }
 
@@ -508,6 +513,7 @@ const handleShip = async (row) => {
     shipLoadingId.value = null
   }
 }
+
 
 const handleReceive = async (row) => {
   receiveLoadingId.value = row.id
@@ -535,7 +541,7 @@ const handleCancel = async (row) => {
 const handleRefund = async (row) => {
   try {
     await request.post(`/order/refund?orderId=${row.id}`)
-    ElMessage.success('退款申请已提交，等待卖家或管理员处理')
+    ElMessage.success('退款申请已提交，等待商家或管理员处理')
     fetchOrders()
   } catch (e) {
     console.error(e)
@@ -562,6 +568,7 @@ const handleRejectRefund = async (row) => {
   }
 }
 
+
 const showLogistics = async (row) => {
   try {
     logisticsData.value = await request.get('/order/logistics', { params: { orderId: row.id } })
@@ -576,7 +583,7 @@ const confirmPay = async () => {
 
   payLoading.value = true
   try {
-    await request.post(`/order/pay?orderId=${currentOrder.value.id}`)
+    await request.post(`/order/pay?orderId=${currentOrder.value.id}&paymentMethod=${payMethod.value}`)
     ElMessage({
       message: '支付成功！',
       type: 'success',
@@ -635,7 +642,7 @@ const noticeText = (row) => {
   if (t === 'NEW_ORDER') return '新订单待处理'
   if (t === 'PAY_PENDING') return '待付款：订单已创建'
   if (t === 'PAID') return '买家已付款'
-  if (t === 'SHIPPED') return '卖家已发货'
+  if (t === 'SHIPPED') return '商家已发货'
   if (t === 'RECEIVED') return '买家已确认收货'
   if (t === 'REFUND_PENDING') return '买家申请退款，等待处理'
   if (t === 'REFUND_APPROVED') return '退款已同意'
@@ -683,13 +690,13 @@ const loadOrderDetail = async (orderId) => {
 const orderDetailChat = () => {
   if (!orderDetail.value?.id) return
   orderDetailVisible.value = false
-  router.push(`/orders/${orderDetail.value.id}/chat`)
+  router.push(allowSellerMode ? `/orders/${orderDetail.value.id}/chat?from=admin` : `/orders/${orderDetail.value.id}/chat`)
 }
 
 const openOrderChat = (row) => {
   if (!row?.orderId) return
   noticeDrawerVisible.value = false
-  router.push(`/orders/${row.orderId}/chat`)
+  router.push(allowSellerMode ? `/orders/${row.orderId}/chat?from=admin` : `/orders/${row.orderId}/chat`)
 }
 
 const focusOrderInList = async (orderId) => {
@@ -714,7 +721,18 @@ const scrollToOrder = (orderId) => {
   }
 }
 
+const handleBack = () => {
+  if (allowSellerMode) {
+    router.push('/admin')
+    return
+  }
+  router.push('/')
+}
+
 onMounted(() => {
+  if (allowSellerMode) {
+    orderScope.value = 'seller'
+  }
   fetchOrders()
 })
 
@@ -886,5 +904,13 @@ onBeforeUnmount(() => {
 }
 :deep(.notice-unread td) {
   background: #fff7e6 !important;
+}
+@media (max-width: 900px) {
+  .order-container { padding: 10px; }
+  .card-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .header-right { width: 100%; flex-wrap: wrap; }
+  .order-info-line { flex-wrap: wrap; gap: 8px; }
+  :deep(.el-table) { font-size: 12px; }
+  :deep(.el-dialog) { width: 94vw !important; }
 }
 </style>

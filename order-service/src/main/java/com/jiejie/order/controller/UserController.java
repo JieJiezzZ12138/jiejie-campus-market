@@ -6,12 +6,14 @@ import com.jiejie.order.entity.UserAddress;
 import com.jiejie.order.entity.SystemNotice;
 import com.jiejie.order.entity.BannerItem;
 import com.jiejie.order.entity.AdminFeedback;
+import com.jiejie.order.entity.UserFeedback;
 import com.jiejie.order.mapper.AdminNotificationMapper;
 import com.jiejie.order.mapper.UserAddressMapper;
 import com.jiejie.order.mapper.SystemNoticeMapper;
 import com.jiejie.order.mapper.BannerItemMapper;
 import com.jiejie.order.mapper.UserMapper;
 import com.jiejie.order.mapper.AdminFeedbackMapper;
+import com.jiejie.order.mapper.UserFeedbackMapper;
 import com.jiejie.order.security.AuthContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
@@ -37,6 +39,8 @@ public class UserController {
     private BannerItemMapper bannerItemMapper;
     @Autowired
     private AdminFeedbackMapper adminFeedbackMapper;
+    @Autowired
+    private UserFeedbackMapper userFeedbackMapper;
 
     @GetMapping("/profile")
     public Result getProfile(HttpServletRequest request) {
@@ -64,7 +68,7 @@ public class UserController {
             return Result.error("昵称不能为空");
         }
         String phoneTrim = phone != null ? phone.trim() : "";
-        if (StringUtils.hasText(phoneTrim) && !phoneTrim.matches("^\\d{7,20}$")) {
+        if (StringUtils.hasText(phoneTrim) && !phoneTrim.matches("^1[3-9]\\d{9}$")) {
             return Result.error("手机号格式不正确");
         }
         if (StringUtils.hasText(phoneTrim)) {
@@ -83,8 +87,12 @@ public class UserController {
     }
 
     @GetMapping("/admin/list")
-    public Result getAdminUserList() {
-        return Result.success(userMapper.findAllForAdmin());
+    public Result getAdminUserList(@RequestParam(value = "keyword", required = false) String keyword) {
+        String k = keyword != null ? keyword.trim() : null;
+        if (!StringUtils.hasText(k)) {
+            return Result.success(userMapper.findAllForAdmin());
+        }
+        return Result.success(userMapper.findAllForAdminByKeyword(k));
     }
 
     @PostMapping("/admin/status")
@@ -281,5 +289,42 @@ public class UserController {
         }
         adminFeedbackMapper.updateStatus(id, status);
         return Result.success("状态已更新");
+    }
+
+    @PostMapping("/feedback/submit")
+    public Result submitUserFeedback(HttpServletRequest request, @RequestBody Map<String, String> body) {
+        Long uid = AuthContext.currentUserId(request);
+        if (uid == null) return Result.error("请先登录");
+        String content = body.get("content") != null ? body.get("content").trim() : "";
+        if (!StringUtils.hasText(content)) return Result.error("请填写反馈内容");
+        UserFeedback f = new UserFeedback();
+        f.setUserId(uid);
+        f.setContent(content);
+        userFeedbackMapper.insert(f);
+        return Result.success("反馈已提交");
+    }
+
+    @GetMapping("/feedback/mine")
+    public Result myFeedback(HttpServletRequest request) {
+        Long uid = AuthContext.currentUserId(request);
+        if (uid == null) return Result.error("请先登录");
+        return Result.success(userFeedbackMapper.listMine(uid));
+    }
+
+    @GetMapping("/admin/feedback/user-list")
+    public Result adminUserFeedbackList(HttpServletRequest request) {
+        if (requireAdminUser(request) == null) return Result.error("需要管理员权限");
+        return Result.success(userFeedbackMapper.listAll());
+    }
+
+    @PostMapping("/admin/feedback/user-status")
+    public Result adminUserFeedbackStatus(HttpServletRequest request,
+                                          @RequestParam("id") Long id,
+                                          @RequestParam("status") Integer status,
+                                          @RequestParam(value = "replyContent", required = false) String replyContent) {
+        if (requireAdminUser(request) == null) return Result.error("需要管理员权限");
+        if (status == null || (status != 0 && status != 1 && status != 2)) return Result.error("状态无效");
+        userFeedbackMapper.updateStatus(id, status, replyContent != null ? replyContent.trim() : null);
+        return Result.success("处理完成");
     }
 }

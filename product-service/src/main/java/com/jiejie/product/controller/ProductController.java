@@ -6,10 +6,15 @@ import com.jiejie.product.entity.Product;
 import com.jiejie.product.entity.ProductReview;
 import com.jiejie.product.mapper.ProductFavoriteMapper;
 import com.jiejie.product.mapper.ProductMapper;
+import com.jiejie.product.mapper.ProductCategoryMapper;
 import com.jiejie.product.mapper.ProductReviewMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -19,10 +24,12 @@ import java.util.Locale;
 import java.util.List;
 import java.util.UUID;
 import java.util.Map;
+import java.util.ArrayList;
 
 @RestController
 @RequestMapping("/product")
 public class ProductController {
+    private static final int LEGACY_IMAGE_URL_SAFE_LEN = 480;
 
     @Autowired
     private ProductMapper productMapper;
@@ -30,6 +37,8 @@ public class ProductController {
     private ProductFavoriteMapper productFavoriteMapper;
     @Autowired
     private ProductReviewMapper productReviewMapper;
+    @Autowired
+    private ProductCategoryMapper productCategoryMapper;
     @Value("${file.upload-path}")
     private String uploadPath;
 
@@ -40,7 +49,13 @@ public class ProductController {
     public Result list(@RequestParam(value = "category", required = false) String category,
                        @RequestParam(value = "keyword", required = false) String keyword,
                        @RequestParam(value = "sortBy", required = false) String sortBy) {
-        return Result.success(productMapper.getActiveProducts(category, keyword, sortBy));
+        try {
+            return Result.success(productMapper.getActiveProducts(category, keyword, sortBy));
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            // 兜底：当订单统计相关 SQL 因历史库结构差异失败时，降级为基础商品列表
+            return Result.success(productMapper.getActiveProductsWithoutOrderStats(category, keyword, sortBy));
+        }
     }
 
     @GetMapping("/detail")
@@ -50,11 +65,23 @@ public class ProductController {
         return Result.success(p);
     }
 
+    @GetMapping("/category/list")
+    public Result categoryList() {
+        return Result.success(productMapper.listOnlineCategories());
+    }
+
     /**
-     * 2. 发布商品 (👉 动态获取发布人 ID，告别“学霸小杰”)
+     * 2. 发布商品（管理员入口）
      */
     @PostMapping("/publish")
+    @CacheEvict(cacheNames = {"product:list", "product:category:list"}, allEntries = true)
     public Result publish(@RequestBody Product product, HttpServletRequest request) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isAdmin = auth != null && auth.getAuthorities() != null &&
+                auth.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()) || "ROLE_SUPER_ADMIN".equals(a.getAuthority()));
+        if (!isAdmin) {
+            return Result.error("仅管理员可上架商品，请前往后台操作");
+        }
         // --- 核心逻辑：获取真实的发布者 ID ---
 
         // 尝试从拦截器存入的属性中取
@@ -161,9 +188,165 @@ public class ProductController {
     }
 
     @PostMapping("/admin/status")
+    @CacheEvict(cacheNames = {"product:list"}, allEntries = true)
     public Result updateStatus(@RequestParam(value = "id") Long id, @RequestParam(value = "status") Integer status) {
         productMapper.updateStatus(id, status);
         return Result.success("操作成功");
+    }
+
+    @PostMapping("/admin/delete")
+    @CacheEvict(cacheNames = {"product:list"}, allEntries = true)
+    public Result adminDelete(@RequestParam("id") Long id) {
+        int n = productMapper.adminDeleteById(id);
+        if (n == 0) return Result.error("商品不存在");
+        return Result.success("删除成功");
+    }
+
+    @GetMapping("/admin/category/list")
+    public Result adminCategoryList() {
+        return Result.success(productCategoryMapper.adminList());
+    }
+
+    @PostMapping("/admin/category/save")
+    @CacheEvict(cacheNames = {"product:category:list"}, allEntries = true)
+    public Result adminCategorySave(@RequestBody com.jiejie.product.entity.ProductCategory body) {
+        if (body.getName() == null || body.getName().trim().isEmpty()) return Result.error("分类名称不能为空");
+        if (body.getSortNo() == null) body.setSortNo(100);
+        if (body.getStatus() == null) body.setStatus(1);
+        if (body.getId() == null) {
+            productCategoryMapper.insert(body);
+        } else {
+            productCategoryMapper.update(body);
+        }
+        return Result.success("操作成功");
+    }
+
+    @PostMapping("/admin/category/delete")
+    @CacheEvict(cacheNames = {"product:category:list"}, allEntries = true)
+    public Result adminCategoryDelete(@RequestParam("id") Long id) {
+        productCategoryMapper.delete(id);
+        return Result.success("删除成功");
+    }
+
+    @PostMapping("/admin/save")
+    @CacheEvict(cacheNames = {"product:list"}, allEntries = true)
+    public Result adminSave(@RequestBody Product product, HttpServletRequest request) {
+        Object userIdAttr = request.getAttribute("currentUserId");
+        if (userIdAttr == null) return Result.error("请先登录");
+        if (product.getName() == null || product.getName().trim().isEmpty()) return Result.error("商品名称不能为空");
+        if (product.getPrice() == null || product.getPrice().doubleValue() <= 0) return Result.error("价格必须大于0");
+        if (product.getCategory() == null || product.getCategory().trim().isEmpty()) return Result.error("商品分类不能为空");
+        if (product.getStock() == null || product.getStock() < 0) product.setStock(1);
+        if (product.getAuditStatus() == null) product.setAuditStatus(1);
+        if (product.getPublishStatus() == null) product.setPublishStatus(1);
+        if (product.getIsSeckill() == null) product.setIsSeckill(0);
+        if (product.getOriginalPrice() == null) product.setOriginalPrice(product.getPrice());
+        if (product.getIsSeckill() == 0) {
+            product.setSeckillPrice(null);
+            product.setSeckillStartTime(null);
+            product.setSeckillEndTime(null);
+        }
+        normalizeProductImages(product);
+        if (product.getId() == null) {
+            if (product.getSellerId() == null) {
+                product.setSellerId(Long.parseLong(userIdAttr.toString()));
+            }
+            try {
+                productMapper.insertProduct(product);
+            } catch (Exception e) {
+                e.printStackTrace();
+                String detail = e.getMessage() == null ? "" : e.getMessage();
+                return Result.error("保存失败：" + (detail.isBlank() ? "请检查图片字段长度或格式" : detail));
+            }
+            return Result.success("新增成功");
+        }
+        int n;
+        try {
+            n = productMapper.updateProductByAdmin(product);
+        } catch (Exception e) {
+            e.printStackTrace();
+            String detail = e.getMessage() == null ? "" : e.getMessage();
+            return Result.error("更新失败：" + (detail.isBlank() ? "请检查图片字段长度或格式" : detail));
+        }
+        if (n == 0) return Result.error("商品不存在或更新失败");
+        return Result.success("更新成功");
+    }
+
+    private void normalizeProductImages(Product product) {
+        List<String> images = new ArrayList<>();
+        images.addAll(parseImageValues(product.getImageUrl()));
+        images.addAll(parseImageValues(product.getImage()));
+        // 去重并限制最多 9 张
+        List<String> normalized = images.stream()
+                .filter(s -> s != null && !s.trim().isEmpty())
+                .map(String::trim)
+                .distinct()
+                .limit(9)
+                .toList();
+        if (normalized.isEmpty()) {
+            product.setImage(null);
+            product.setImageUrl(null);
+            return;
+        }
+        product.setImage(normalized.get(0));
+        product.setImageUrl(toLegacySafeJsonArray(normalized));
+    }
+
+    private List<String> parseImageValues(String input) {
+        if (input == null || input.trim().isEmpty()) return List.of();
+        String s = input.trim();
+        // 兼容历史脏数据：去掉外层多余引号（例如 "\"[\\\"/images/a.jpg\\\"]\""）
+        while ((s.startsWith("\"") && s.endsWith("\"")) || (s.startsWith("'") && s.endsWith("'"))) {
+            if (s.length() < 2) break;
+            s = s.substring(1, s.length() - 1).trim();
+        }
+        if (!s.startsWith("[") || !s.endsWith("]")) return List.of(s);
+        String body = s.substring(1, s.length() - 1).trim();
+        if (body.isEmpty()) return List.of();
+        String[] arr = body.split(",");
+        List<String> out = new ArrayList<>();
+        for (String item : arr) {
+            String v = item.trim();
+            if (v.startsWith("\"") && v.endsWith("\"") && v.length() >= 2) {
+                v = v.substring(1, v.length() - 1);
+            }
+            v = v.replace("\\\"", "\"").replace("\\\\", "\\");
+            while ((v.startsWith("\"") && v.endsWith("\"")) || (v.startsWith("'") && v.endsWith("'"))) {
+                if (v.length() < 2) break;
+                v = v.substring(1, v.length() - 1).trim();
+            }
+            if (v.startsWith("[") && v.endsWith("]")) {
+                out.addAll(parseImageValues(v));
+                continue;
+            }
+            if (!v.isBlank()) out.add(v);
+        }
+        return out;
+    }
+
+    private String toJsonArray(List<String> images) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < images.size(); i++) {
+            if (i > 0) sb.append(',');
+            sb.append('"').append(images.get(i).replace("\\", "\\\\").replace("\"", "\\\"")).append('"');
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
+    private String toLegacySafeJsonArray(List<String> images) {
+        // 兼容旧库 image_url=VARCHAR(500)：尽可能保留多图，但不超过安全长度
+        List<String> out = new ArrayList<>();
+        for (String image : images) {
+            out.add(image);
+            String candidate = toJsonArray(out);
+            if (candidate.length() > LEGACY_IMAGE_URL_SAFE_LEN) {
+                out.remove(out.size() - 1);
+                break;
+            }
+        }
+        if (out.isEmpty()) out.add(images.get(0));
+        return toJsonArray(out);
     }
 
     @PostMapping("/favorite/toggle")
@@ -216,5 +399,31 @@ public class ProductController {
     @GetMapping("/review/list")
     public Result reviewList(@RequestParam("productId") Long productId) {
         return Result.success(productReviewMapper.listByProductId(productId));
+    }
+
+    @PostMapping("/review/delete")
+    public Result deleteMyReview(HttpServletRequest request, @RequestParam("id") Long id) {
+        Object userIdAttr = request.getAttribute("currentUserId");
+        if (userIdAttr == null) {
+            return Result.error("请先登录");
+        }
+        Long userId = Long.parseLong(userIdAttr.toString());
+        int n = productReviewMapper.deleteByIdAndUser(id, userId);
+        if (n <= 0) {
+            return Result.error("只能删除自己的评价，或评价已不存在");
+        }
+        return Result.success("删除成功");
+    }
+
+    @GetMapping("/admin/review/list")
+    public Result adminReviewList() {
+        return Result.success(productReviewMapper.adminListAll());
+    }
+
+    @PostMapping("/admin/review/delete")
+    public Result adminReviewDelete(@RequestParam("id") Long id) {
+        int n = productReviewMapper.adminDeleteById(id);
+        if (n == 0) return Result.error("评价不存在或已删除");
+        return Result.success("删除成功");
     }
 }

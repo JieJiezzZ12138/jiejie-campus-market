@@ -157,10 +157,23 @@ public class OrderController {
 
             orderMapper.createOrder(order);
 
-            // 下架商品
-            productMapper.updateStatus(cartItem.getProductId(), 2);
+            // 正确库存逻辑：按购买数量扣减，库存为 0 才下架
+            int reduced = productMapper.reduceStock(cartItem.getProductId(), cartItem.getQuantity());
+            if (reduced == 0) {
+                return Result.error("商品库存不足，无法下单");
+            }
+            try {
+                com.jiejie.product.entity.Product latest = productMapper.selectById(cartItem.getProductId());
+                if (latest != null) {
+                    if (latest.getStock() != null && latest.getStock() <= 0) {
+                        productMapper.updateStatus(cartItem.getProductId(), 2);
+                    } else {
+                        productMapper.updateStatus(cartItem.getProductId(), 1);
+                    }
+                }
+            } catch (Exception ignored) {}
 
-            // 订单通知：买家待付款、卖家新订单
+            // 订单通知：买家待付款、商家新订单
             Long sellerId = null;
             try {
                 if (cartItem.getProductId() != null) {
@@ -208,7 +221,7 @@ public class OrderController {
     }
 
     /**
-     * 订单详情（买卖双方可见，用于私信页标题等）
+     * 订单详情（买卖双方可见，用于消息页标题等）
      */
     @GetMapping("/detail")
     public Result orderDetail(HttpServletRequest request, @RequestParam("orderId") Long orderId) {
@@ -243,7 +256,7 @@ public class OrderController {
         List<Order> orders;
         if ("seller".equalsIgnoreCase(scope)) {
             orders = orderMapper.findBySellerId(currentUserId);
-            // 卖家查看订单时，已收货通知可视为已读（信息性）
+            // 商家查看订单时，已收货通知可视为已读（信息性）
             orderNoticeMapper.markReadByTypes(currentUserId, "SELLER", Arrays.asList("RECEIVED"));
         } else {
             orders = orderMapper.findByUserId(currentUserId);
@@ -269,24 +282,30 @@ public class OrderController {
         if (owned.getOrderStatus() != null && owned.getOrderStatus() != 0) {
             return Result.error("订单已支付或状态异常");
         }
-        int n = orderMapper.markPaid(orderId, currentUserId);
+        String paymentMethod = request.getParameter("paymentMethod");
+        if (!StringUtils.hasText(paymentMethod)) paymentMethod = "ALIPAY";
+        if (!List.of("ALIPAY", "WECHAT", "CAMPUS_COD").contains(paymentMethod)) {
+            return Result.error("不支持的支付方式");
+        }
+        String txnNo = "TXN" + System.currentTimeMillis() + orderId;
+        int n = orderMapper.markPaid(orderId, currentUserId, paymentMethod, txnNo);
         if (n == 0) {
             return Result.error("支付失败，请刷新后重试");
         }
         // 清除买家待付款通知
         orderNoticeMapper.markReadByOrder(currentUserId, orderId);
-        // 通知卖家：买家已付款
+        // 通知商家：买家已付款
         Order paid = orderMapper.findByIdWithProduct(orderId);
         if (paid != null && paid.getSellerId() != null) {
-            // 清理卖家该订单旧通知（如 NEW_ORDER）
+            // 清理商家该订单旧通知（如 NEW_ORDER）
             orderNoticeMapper.markReadByOrder(paid.getSellerId(), orderId);
             createNotice(orderId, paid.getSellerId(), "SELLER", "PAID");
         }
-        return Result.success("支付成功！卖家将尽快为您发货。");
+        return Result.success("支付成功！商家将尽快为您发货。");
     }
 
     /**
-     * 4. 卖家发货：已支付(待发货) → 已发货
+     * 4. 商家发货：已支付(待发货) → 已发货
      */
     @PostMapping("/ship")
     public Result shipOrder(HttpServletRequest request, @RequestParam("orderId") Long orderId) {
@@ -299,7 +318,7 @@ public class OrderController {
             return Result.error("订单不存在");
         }
         if (o.getSellerId() == null || !currentUserId.equals(o.getSellerId())) {
-            return Result.error("只有商品卖家可以发货");
+            return Result.error("只有商品商家可以发货");
         }
         if (o.getOrderStatus() == null || o.getOrderStatus() != 1) {
             return Result.error("当前订单状态不可发货（需买家已支付）");
@@ -308,7 +327,7 @@ public class OrderController {
         if (n == 0) {
             return Result.error("发货失败，请重试");
         }
-        // 卖家已完成发货，清理该订单下卖家通知
+        // 商家已完成发货，清理该订单下商家通知
         orderNoticeMapper.markReadByOrder(currentUserId, orderId);
         // 通知买家：已发货
         if (o.getBuyerId() != null) {
@@ -334,7 +353,7 @@ public class OrderController {
             return Result.error("只有买家可以确认收货");
         }
         if (o.getOrderStatus() == null || o.getOrderStatus() != 2) {
-            return Result.error("当前订单状态不可确认收货（需卖家已发货）");
+            return Result.error("当前订单状态不可确认收货（需商家已发货）");
         }
         int n = orderMapper.markReceived(orderId, currentUserId);
         if (n == 0) {
@@ -342,7 +361,7 @@ public class OrderController {
         }
         // 买家已确认收货，清理该订单下买家通知
         orderNoticeMapper.markReadByOrder(currentUserId, orderId);
-        // 通知卖家：买家已确认收货
+        // 通知商家：买家已确认收货
         if (o.getSellerId() != null) {
             createNotice(orderId, o.getSellerId(), "SELLER", "RECEIVED");
         }
@@ -479,7 +498,7 @@ public class OrderController {
     }
 
     /**
-     * 管理员：仅当订单存在用户「交易反馈」时，可查看该订单详情及买卖双方完整私信（不在其它入口暴露）
+     * 管理员：仅当订单存在用户「交易反馈」时，可查看该订单详情及买卖双方完整消息（不在其它入口暴露）
      */
     @GetMapping("/admin/feedback-order-view")
     public Result adminFeedbackOrderView(HttpServletRequest request, @RequestParam("orderId") Long orderId) {
@@ -497,7 +516,7 @@ public class OrderController {
         }
         List<OrderFeedback> feedbacks = orderFeedbackMapper.listByOrderId(orderId);
         if (feedbacks == null || feedbacks.isEmpty()) {
-            return Result.error("该订单暂无用户反馈记录，无权查看私信");
+            return Result.error("该订单暂无用户反馈记录，无权查看消息");
         }
         ChatThread thread = chatThreadMapper.findByProductAndCustomer(o.getProductId(), o.getBuyerId());
         List<PrivateMessage> messages;
@@ -562,6 +581,17 @@ public class OrderController {
         return Result.success("订单状态已更新");
     }
 
+    @PostMapping("/admin/delete")
+    public Result adminDeleteOrder(HttpServletRequest request, @RequestParam("orderId") Long orderId) {
+        Long uid = AuthContext.currentUserId(request);
+        if (uid == null) return Result.error("未登录");
+        User admin = userMapper.findById(uid);
+        if (!isAdminOrSuperAdmin(admin)) return Result.error("需要管理员权限");
+        int n = orderMapper.adminDeleteById(orderId);
+        if (n == 0) return Result.error("订单不存在");
+        return Result.success("删除成功");
+    }
+
     @PostMapping("/cancel")
     public Result cancelOrder(HttpServletRequest request, @RequestParam("orderId") Long orderId) {
         Long currentUserId = AuthContext.currentUserId(request);
@@ -589,7 +619,7 @@ public class OrderController {
         an.setSenderId(currentUserId);
         an.setPreview("[退款申请] 订单 " + (o.getOrderNo() != null ? o.getOrderNo() : ("#" + orderId)) + "：买家申请退款");
         adminNotificationMapper.insert(an);
-        return Result.success("退款申请已提交，等待卖家处理或管理员裁决");
+        return Result.success("退款申请已提交，等待商家处理或管理员裁决");
     }
 
     @GetMapping("/logistics")
@@ -653,7 +683,7 @@ public class OrderController {
         User u = userMapper.findById(uid);
         boolean sellerApprove = o.getSellerId() != null && o.getSellerId().equals(uid);
         boolean adminApprove = u != null && ("ADMIN".equals(u.getRole()) || "SUPER_ADMIN".equals(u.getRole()));
-        if (!sellerApprove && !adminApprove) return Result.error("仅卖家或管理员可同意退款");
+        if (!sellerApprove && !adminApprove) return Result.error("仅商家或管理员可同意退款");
         int n = orderMapper.approveRefund(orderId);
         if (n == 0) return Result.error("当前订单不是待退款状态");
         if (o.getBuyerId() != null) createNotice(orderId, o.getBuyerId(), "BUYER", "REFUND_APPROVED");
@@ -675,7 +705,7 @@ public class OrderController {
         User u = userMapper.findById(uid);
         boolean sellerReject = o.getSellerId() != null && o.getSellerId().equals(uid);
         boolean adminReject = u != null && ("ADMIN".equals(u.getRole()) || "SUPER_ADMIN".equals(u.getRole()));
-        if (!sellerReject && !adminReject) return Result.error("仅卖家或管理员可拒绝退款");
+        if (!sellerReject && !adminReject) return Result.error("仅商家或管理员可拒绝退款");
         int n = orderMapper.rejectRefund(orderId, rollbackStatus);
         if (n == 0) return Result.error("当前订单不是待退款状态");
         if (o.getBuyerId() != null) createNotice(orderId, o.getBuyerId(), "BUYER", "REFUND_REJECTED");

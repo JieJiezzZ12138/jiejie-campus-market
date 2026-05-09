@@ -8,7 +8,19 @@
         </div>
       </template>
       <div v-if="detail" class="detail">
-        <img :src="getImageUrl(detail.image || detail.imageUrl)" class="img" />
+        <div>
+          <img :src="getImageUrl(activeImage || imageList[0] || '')" class="img" />
+          <div v-if="imageList.length > 1" class="thumbs">
+            <img
+              v-for="(u, i) in imageList"
+              :key="`img-${i}`"
+              :src="getImageUrl(u)"
+              class="thumb"
+              :class="{ active: (activeImage || imageList[0]) === u }"
+              @click="activeImage = u"
+            />
+          </div>
+        </div>
         <div class="info">
           <h2>{{ detail.name }}</h2>
           <p>{{ detail.description || '暂无描述' }}</p>
@@ -46,12 +58,28 @@ const router = useRouter()
 const detail = ref<any>(null)
 const specColors = ref<string[]>([])
 const specSizes = ref<string[]>([])
+const imageList = ref<string[]>([])
+const activeImage = ref('')
+const parseImages = (image: any, imageUrl: any): string[] => {
+  const parse = (v: any): string[] => {
+    if (!v) return []
+    if (Array.isArray(v)) return v.filter(Boolean)
+    const s = String(v)
+    if (s.startsWith('[')) {
+      try { return (JSON.parse(s) || []).filter(Boolean) } catch { return [] }
+    }
+    return [s]
+  }
+  return Array.from(new Set([...parse(image), ...parse(imageUrl)].filter(Boolean)))
+}
 const getImageUrl = (url) => resolveImageUrl(url)
 
 onMounted(async () => {
   const id = route.params.id
   if (!id) return
   detail.value = await request.get('/product/detail', { params: { id } })
+  imageList.value = parseImages(detail.value?.image, detail.value?.imageUrl)
+  activeImage.value = imageList.value[0] || ''
   try {
     const spec = detail.value?.specJson ? JSON.parse(detail.value.specJson) : {}
     specColors.value = Array.isArray(spec.colors) ? spec.colors : []
@@ -77,5 +105,8 @@ const receiveCoupon = async () => {
 .page { padding: 20px; }
 .detail { display: flex; gap: 20px; }
 .img { width: 360px; height: 360px; object-fit: cover; border-radius: 8px; }
+.thumbs { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; max-width: 360px; }
+.thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; border: 2px solid transparent; cursor: pointer; }
+.thumb.active { border-color: #409EFF; }
 .info { flex: 1; }
 </style>

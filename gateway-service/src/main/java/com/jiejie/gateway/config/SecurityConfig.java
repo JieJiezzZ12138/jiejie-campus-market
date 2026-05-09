@@ -50,7 +50,7 @@ public class SecurityConfig {
                 .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
                 .authorizeExchange(ex -> ex
                         .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .pathMatchers("/auth/login", "/auth/register", "/auth/ping").permitAll()
+                        .pathMatchers("/auth/login", "/auth/register", "/auth/ping", "/auth/email/send-code", "/auth/reset-password").permitAll()
                         .pathMatchers("/product/list", "/images/**").permitAll()
                         .pathMatchers("/auth/admin/**", "/user/admin/**", "/order/admin/**", "/product/admin/**")
                         .hasAnyRole("ADMIN", "SUPER_ADMIN")

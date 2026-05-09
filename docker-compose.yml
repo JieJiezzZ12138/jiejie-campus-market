@@ -1,0 +1,120 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: jemall-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: my_system
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./_docker/mysql-data:/var/lib/mysql
+
+  redis:
+    image: redis:7-alpine
+    container_name: jemall-redis
+    restart: always
+    ports:
+      - "6379:6379"
+
+  nacos:
+    image: nacos/nacos-server:v2.3.2
+    container_name: jemall-nacos
+    restart: always
+    environment:
+      MODE: standalone
+    ports:
+      - "8848:8848"
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.auth-service
+    container_name: jemall-auth
+    restart: always
+    depends_on:
+      - mysql
+      - redis
+      - nacos
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USERNAME: root
+      DB_PASSWORD: 123456
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NACOS_HOST: nacos
+      NACOS_NAMESPACE:
+    ports:
+      - "8081:8081"
+
+  product-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.product-service
+    container_name: jemall-product
+    restart: always
+    depends_on:
+      - mysql
+      - redis
+      - nacos
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USERNAME: root
+      DB_PASSWORD: 123456
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NACOS_HOST: nacos
+      NACOS_NAMESPACE:
+    ports:
+      - "8082:8082"
+
+  order-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.order-service
+    container_name: jemall-order
+    restart: always
+    depends_on:
+      - mysql
+      - redis
+      - nacos
+      - product-service
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USERNAME: root
+      DB_PASSWORD: 123456
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NACOS_HOST: nacos
+      NACOS_NAMESPACE:
+    ports:
+      - "8083:8083"
+
+  gateway-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway-service
+    container_name: jemall-gateway
+    restart: always
+    depends_on:
+      - nacos
+      - auth-service
+      - product-service
+      - order-service
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NACOS_HOST: nacos
+      NACOS_NAMESPACE:
+    ports:
+      - "8080:8080"

@@ -19,9 +19,9 @@ public class Order {
     // 辅助字段：连表查询，非 orders 表列
     private String productName;
     private String productImage;
-    /** 商品卖家，用于卖家订单与私信权限 */
+    /** 商品商家，用于商家订单与消息权限 */
     private Long sellerId;
-    /** 买家与卖家地址（订单中心展示） */
+    /** 买家与商家地址（订单中心展示） */
     private String buyerAddress;
     private String sellerAddress;
     /** 买卖双方昵称 / 账号（订单中心展示） */
@@ -35,4 +35,7 @@ public class Order {
     private Long couponId;
     private String couponTitle;
     private BigDecimal discountAmount;
+    private String paymentMethod;
+    private Date payTime;
+    private String payTxnNo;
 }

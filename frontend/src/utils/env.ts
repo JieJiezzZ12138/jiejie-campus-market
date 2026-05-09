@@ -9,6 +9,13 @@ export const uploadActionUrl = `${API_BASE}/product/upload`
 
 export const resolveImageUrl = (url: string): string => {
   if (!url) return ''
+  let clean = String(url).trim()
+  while ((clean.startsWith('"') && clean.endsWith('"')) || (clean.startsWith("'") && clean.endsWith("'"))) {
+    if (clean.length < 2) break
+    clean = clean.slice(1, -1).trim()
+  }
+  if (!clean) return ''
+  url = clean
   if (/^https?:\/\//i.test(url)) {
     try {
       const parsed = new URL(url)

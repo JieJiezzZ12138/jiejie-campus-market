@@ -39,16 +39,16 @@
               <el-input v-model="registerForm.phone" placeholder="手机号（必填）" size="large" />
             </el-form-item>
             <el-form-item prop="email">
-              <el-input v-model="registerForm.email" placeholder="邮箱（必填）" size="large">
+              <el-input v-model="registerForm.email" placeholder="邮箱（可选）" size="large" />
+            </el-form-item>
+            <el-form-item prop="phoneCode">
+              <el-input v-model="registerForm.phoneCode" placeholder="手机验证码" size="large">
                 <template #append>
                   <el-button :disabled="emailSending || emailCountdown > 0" @click="sendRegisterCode">
                     {{ emailCountdown > 0 ? `${emailCountdown}s` : '发送验证码' }}
                   </el-button>
                 </template>
               </el-input>
-            </el-form-item>
-            <el-form-item prop="emailCode">
-              <el-input v-model="registerForm.emailCode" placeholder="邮箱验证码" size="large" />
             </el-form-item>
             <el-form-item prop="campusAddress">
               <el-input v-model="registerForm.campusAddress" placeholder="常用收货地址（可选）" size="large" />
@@ -71,8 +71,17 @@
     </div>
     <el-dialog v-model="resetVisible" title="找回密码" width="460px">
       <el-form :model="resetForm">
-        <el-form-item label="邮箱" label-width="80">
-          <el-input v-model="resetForm.email">
+        <el-form-item label="找回方式" label-width="80">
+          <el-radio-group v-model="resetForm.mode" @change="onResetModeChange">
+            <el-radio label="phone">手机号</el-radio>
+            <el-radio label="email">邮箱</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item :label="resetForm.mode === 'email' ? '邮箱' : '手机号'" label-width="80">
+          <el-input
+            v-model="resetForm.account"
+            :placeholder="resetForm.mode === 'email' ? '请输入已注册邮箱' : '请输入已注册手机号'"
+          >
             <template #append>
               <el-button :disabled="resetSending || resetCountdown > 0" @click="sendResetCode">
                 {{ resetCountdown > 0 ? `${resetCountdown}s` : '发送验证码' }}
@@ -80,7 +89,7 @@
             </template>
           </el-input>
         </el-form-item>
-        <el-form-item label="验证码" label-width="80"><el-input v-model="resetForm.emailCode" /></el-form-item>
+        <el-form-item label="验证码" label-width="80"><el-input v-model="resetForm.phoneCode" /></el-form-item>
         <el-form-item label="新密码" label-width="80"><el-input v-model="resetForm.newPassword" type="password" show-password /></el-form-item>
       </el-form>
       <template #footer>
@@ -112,13 +121,13 @@ const registerForm = reactive({
   nickname: '',
   phone: '',
   email: '',
-  emailCode: '',
+  phoneCode: '',
   campusAddress: '',
   password: '',
   confirmPassword: ''
 })
 const resetVisible = ref(false)
-const resetForm = reactive({ email: '', emailCode: '', newPassword: '' })
+const resetForm = reactive({ mode: 'phone', account: '', phoneCode: '', newPassword: '' })
 const emailSending = ref(false)
 const emailCountdown = ref(0)
 const resetSending = ref(false)
@@ -142,13 +151,13 @@ const registerRules = {
   username: [{ required: true, message: '请输入账号', trigger: 'blur' }],
   phone: [
     { required: true, message: '请输入手机号', trigger: 'blur' },
-    { pattern: /^\\d{7,20}$/, message: '手机号格式不正确', trigger: 'blur' }
+    { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确', trigger: 'blur' }
   ],
   email: [
     { required: true, message: '请输入邮箱', trigger: 'blur' },
     { pattern: /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/, message: '邮箱格式不正确', trigger: 'blur' }
   ],
-  emailCode: [{ required: true, message: '请输入邮箱验证码', trigger: 'blur' }],
+  phoneCode: [{ required: true, message: '请输入手机验证码', trigger: 'blur' }],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码至少 6 位', trigger: 'blur' }
@@ -233,7 +242,7 @@ const handleRegister = () => {
         nickname: registerForm.nickname?.trim() || undefined,
         phone: registerForm.phone?.trim() || undefined,
         email: registerForm.email?.trim() || undefined,
-        emailCode: registerForm.emailCode?.trim() || undefined,
+        phoneCode: registerForm.phoneCode?.trim() || undefined,
         campusAddress: registerForm.campusAddress?.trim() || undefined
       })
       persistSession(res.token, res.userInfo)
@@ -254,11 +263,11 @@ const startCountdown = (targetRef) => {
 }
 
 const sendRegisterCode = async () => {
-  if (!registerForm.email?.trim()) return ElMessage.warning('请先输入邮箱')
+  if (!registerForm.phone?.trim()) return ElMessage.warning('请先输入手机号')
   emailSending.value = true
   try {
-    await request.post('/auth/email/send-code', { email: registerForm.email.trim(), bizType: 'REGISTER' })
-    ElMessage.success('验证码已发送，请查看邮箱/后端日志')
+    await request.post('/auth/email/send-code', { phone: registerForm.phone.trim(), bizType: 'REGISTER' })
+    ElMessage.success('验证码已发送，请查看短信模拟日志')
     startCountdown(emailCountdown)
   } catch (e) {
     console.error(e)
@@ -269,14 +278,36 @@ const sendRegisterCode = async () => {
 
 const openResetDialog = () => {
   resetVisible.value = true
+  resetForm.mode = 'phone'
+  resetForm.account = ''
+  resetForm.phoneCode = ''
+  resetForm.newPassword = ''
+}
+
+const onResetModeChange = () => {
+  resetForm.account = ''
+  resetForm.phoneCode = ''
 }
 
 const sendResetCode = async () => {
-  if (!resetForm.email?.trim()) return ElMessage.warning('请先输入邮箱')
+  const account = resetForm.account?.trim() || ''
+  if (!account) return ElMessage.warning(`请先输入${resetForm.mode === 'email' ? '邮箱' : '手机号'}`)
+  const isEmail = resetForm.mode === 'email'
+  if (!isEmail && !/^1[3-9]\d{9}$/.test(account)) {
+    return ElMessage.warning('手机号格式不正确')
+  }
+  if (isEmail && !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(account)) {
+    return ElMessage.warning('邮箱格式不正确')
+  }
   resetSending.value = true
   try {
-    await request.post('/auth/email/send-code', { email: resetForm.email.trim(), bizType: 'RESET_PASSWORD' })
-    ElMessage.success('验证码已发送，请查看邮箱/后端日志')
+    await request.post('/auth/email/send-code', {
+      mode: resetForm.mode,
+      phone: isEmail ? undefined : account,
+      email: isEmail ? account : undefined,
+      bizType: 'RESET_PASSWORD'
+    })
+    ElMessage.success('验证码已发送，请查看后端日志')
     startCountdown(resetCountdown)
   } catch (e) {
     console.error(e)
@@ -286,14 +317,24 @@ const sendResetCode = async () => {
 }
 
 const submitReset = async () => {
-  if (!resetForm.email || !resetForm.emailCode || !resetForm.newPassword) {
+  const account = resetForm.account?.trim() || ''
+  if (!account || !resetForm.phoneCode || !resetForm.newPassword) {
     return ElMessage.warning('请填写完整信息')
+  }
+  const isEmail = resetForm.mode === 'email'
+  if (!isEmail && !/^1[3-9]\d{9}$/.test(account)) {
+    return ElMessage.warning('手机号格式不正确')
+  }
+  if (isEmail && !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(account)) {
+    return ElMessage.warning('邮箱格式不正确')
   }
   resetSubmitting.value = true
   try {
     await request.post('/auth/reset-password', {
-      email: resetForm.email.trim(),
-      emailCode: resetForm.emailCode.trim(),
+      mode: resetForm.mode,
+      phone: isEmail ? undefined : account,
+      email: isEmail ? account : undefined,
+      phoneCode: resetForm.phoneCode.trim(),
       newPassword: resetForm.newPassword
     })
     ElMessage.success('密码重置成功，请登录')

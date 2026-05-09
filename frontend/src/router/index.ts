@@ -69,6 +69,7 @@ const router = createRouter({
 router.beforeEach((to) => {
   const token = localStorage.getItem('token')
   const role = localStorage.getItem('user_role')
+  const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN'
 
   if (to.path === '/login') return true
 
@@ -81,6 +82,16 @@ router.beforeEach((to) => {
     if (role === 'SUPER_ADMIN') return true
     ElMessage.warning('权限不足')
     return '/'
+  }
+
+  if (isAdmin) {
+    const frontBuyerPaths = ['/orders', '/messages']
+    const path = to.path || ''
+    const allowFromAdmin = to.query?.from === 'admin'
+    if (!allowFromAdmin && (frontBuyerPaths.includes(path) || path.startsWith('/chat/') || path.startsWith('/orders/'))) {
+      ElMessage.info('商家/管理员请在后台处理订单与消息')
+      return '/admin'
+    }
   }
 
   return true

@@ -59,6 +59,34 @@
         <el-form-item>
           <el-button type="primary" :loading="saving" @click="handleSave">保存修改</el-button>
         </el-form-item>
+
+        <el-divider content-position="left">修改密码</el-divider>
+        <el-form-item label="旧密码">
+          <el-input v-model="pwdForm.oldPassword" type="password" show-password placeholder="请输入旧密码" />
+        </el-form-item>
+        <el-form-item label="新密码">
+          <el-input v-model="pwdForm.newPassword" type="password" show-password placeholder="请输入新密码（至少6位）" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="warning" :loading="pwdLoading" @click="changeMyPassword">更新密码</el-button>
+        </el-form-item>
+
+        <el-divider content-position="left">意见反馈</el-divider>
+        <el-form-item label="反馈内容">
+          <el-input v-model="feedbackText" type="textarea" :rows="3" maxlength="500" show-word-limit placeholder="提交你对平台的建议或问题" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="warning" @click="submitUserFeedback">提交反馈</el-button>
+          <el-button @click="loadMyFeedback">刷新记录</el-button>
+        </el-form-item>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+          <div v-for="f in myFeedbackList" :key="f.id" style="border:1px solid #ebeef5;border-radius:8px;padding:8px;">
+            <div style="font-size:12px;color:#606266;">{{ f.createTime ? new Date(f.createTime).toLocaleString() : '-' }}</div>
+            <div style="margin-top:4px;">{{ f.content }}</div>
+            <div style="margin-top:6px;color:#909399;">状态：{{ Number(f.status)===0 ? '待处理' : (Number(f.status)===1 ? '已处理' : '驳回') }}</div>
+            <div v-if="f.replyContent" style="margin-top:6px;color:#303133;">管理员回复：{{ f.replyContent }}</div>
+          </div>
+        </div>
       </el-form>
     </el-card>
     <el-dialog v-model="addressVisible" title="地址编辑" width="560px">
@@ -96,6 +124,10 @@ const form = reactive({
 const addressList = ref<any[]>([])
 const addressVisible = ref(false)
 const addressForm = ref<any>({ id: null, receiver: '', phone: '', province: '', city: '', district: '', detailAddress: '', isDefault: 0 })
+const feedbackText = ref('')
+const myFeedbackList = ref<any[]>([])
+const pwdForm = ref({ oldPassword: '', newPassword: '' })
+const pwdLoading = ref(false)
 
 const localToken = localStorage.getItem('token') || ''
 const uploadHeaders = localToken ? { Authorization: `Bearer ${localToken}` } : {}
@@ -152,7 +184,7 @@ const handleSave = async () => {
   if (!form.nickname?.trim()) {
     return ElMessage.warning('请填写昵称')
   }
-  if (!form.phone?.trim() || !/^\d{7,20}$/.test(form.phone.trim())) {
+  if (!form.phone?.trim() || !/^1[3-9]\d{9}$/.test(form.phone.trim())) {
     return ElMessage.warning('请输入正确手机号')
   }
   saving.value = true
@@ -175,6 +207,7 @@ const handleSave = async () => {
 onMounted(() => {
   loadProfile()
   loadAddressList()
+  loadMyFeedback()
 })
 
 const loadAddressList = async () => {
@@ -199,6 +232,48 @@ const saveAddress = async () => {
 const removeAddress = async (row) => {
   await request.post(`/user/address/delete?id=${row.id}`)
   loadAddressList()
+}
+
+const changeMyPassword = async () => {
+  const oldPassword = pwdForm.value.oldPassword.trim()
+  const newPassword = pwdForm.value.newPassword.trim()
+  if (!oldPassword || !newPassword) return ElMessage.warning('请填写完整密码信息')
+  if (newPassword.length < 6) return ElMessage.warning('新密码至少 6 位')
+  pwdLoading.value = true
+  try {
+    await request.post('/auth/change-password', { oldPassword, newPassword })
+    pwdForm.value.oldPassword = ''
+    pwdForm.value.newPassword = ''
+    ElMessage.success('密码修改成功，请重新登录')
+    localStorage.clear()
+    router.push('/login')
+  } catch (e) {
+    console.error(e)
+  } finally {
+    pwdLoading.value = false
+  }
+}
+
+const submitUserFeedback = async () => {
+  const t = feedbackText.value.trim()
+  if (!t) return ElMessage.warning('请填写反馈内容')
+  try {
+    await request.post('/user/feedback/submit', { content: t })
+    feedbackText.value = ''
+    ElMessage.success('反馈已提交')
+    loadMyFeedback()
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const loadMyFeedback = async () => {
+  try {
+    myFeedbackList.value = await request.get('/user/feedback/mine') || []
+  } catch (e) {
+    console.error(e)
+    myFeedbackList.value = []
+  }
 }
 </script>
 
@@ -252,5 +327,13 @@ const removeAddress = async (row) => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .profile-page { padding: 12px; }
+  .profile-card { max-width: 100%; }
+  :deep(.el-form-item__label) { width: 78px !important; }
+  :deep(.el-form-item__content) { margin-left: 78px !important; }
+  :deep(.el-dialog) { width: 94vw !important; }
 }
 </style>

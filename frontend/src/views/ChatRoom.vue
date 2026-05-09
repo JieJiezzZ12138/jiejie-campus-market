@@ -3,7 +3,7 @@
     <el-header class="chat-header">
       <el-button :icon="ArrowLeft" circle @click="goBack" />
       <div class="header-title">
-        <span class="title">{{ context?.chatTitle || '私聊' }}</span>
+        <span class="title">{{ context?.chatTitle || '消息沟通' }}</span>
         <span class="sub" v-if="context">
           <template v-if="context.orderNo">订单 {{ context.orderNo }} · </template>
           {{ context.productName || '商品' }}
@@ -160,12 +160,13 @@ const send = async () => {
 }
 
 const goBack = () => {
+  const fromAdmin = route.query?.from === 'admin'
   if (isThreadEntry.value) {
-    router.push('/messages')
+    router.push(fromAdmin ? '/admin?panel=sellerMessages' : '/messages')
   } else if (isProductEntry.value) {
-    router.push('/')
+    router.push(fromAdmin ? '/admin' : '/')
   } else {
-    router.push('/orders')
+    router.push(fromAdmin ? '/admin?panel=sellerOrders' : '/orders')
   }
 }
 

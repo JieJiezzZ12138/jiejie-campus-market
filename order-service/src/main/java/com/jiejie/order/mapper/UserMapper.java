@@ -32,6 +32,16 @@ public interface UserMapper {
             "FROM sys_user ORDER BY id DESC")
     List<User> findAllForAdmin();
 
+    @Select("<script>" +
+            "SELECT id, username, nickname, avatar, phone, role, audit_status as status, campus_address " +
+            "FROM sys_user WHERE 1=1 " +
+            "<if test='keyword != null and keyword != \"\"'> " +
+            "AND (username LIKE CONCAT('%',#{keyword},'%') OR nickname LIKE CONCAT('%',#{keyword},'%') OR phone LIKE CONCAT('%',#{keyword},'%')) " +
+            "</if> " +
+            "ORDER BY id DESC" +
+            "</script>")
+    List<User> findAllForAdminByKeyword(@Param("keyword") String keyword);
+
     @Insert("INSERT INTO sys_user (username, password, nickname, avatar, phone, role, audit_status, campus_address, create_time) " +
             "VALUES (#{username}, #{password}, #{nickname}, #{avatar}, #{phone}, #{role}, #{status}, #{campusAddress}, NOW())")
     @Options(useGeneratedKeys = true, keyProperty = "id")

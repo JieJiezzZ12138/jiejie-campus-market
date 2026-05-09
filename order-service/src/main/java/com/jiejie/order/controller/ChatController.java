@@ -45,8 +45,22 @@ public class ChatController {
     @Autowired
     private UserMapper userMapper;
 
+    private boolean isAdminRole(String role) {
+        return "ADMIN".equals(role) || "SUPER_ADMIN".equals(role);
+    }
+
+    private boolean isUserRole(String role) {
+        return "USER".equals(role);
+    }
+
+    private boolean ensureEcommercePair(Long sellerId, Long customerId) {
+        User seller = sellerId == null ? null : userMapper.findById(sellerId);
+        User customer = customerId == null ? null : userMapper.findById(customerId);
+        return seller != null && customer != null && isAdminRole(seller.getRole()) && isUserRole(customer.getRole());
+    }
+
     /**
-     * 与登录用户相关的会话列表（作为买家/咨询者或卖家）
+     * 与登录用户相关的会话列表（作为买家/咨询者或商家）
      */
     @GetMapping("/inbox")
     public Result inbox(HttpServletRequest request) {
@@ -54,7 +68,10 @@ public class ChatController {
         if (uid == null) {
             return Result.error("未登录");
         }
+        User me = userMapper.findById(uid);
+        if (me == null) return Result.error("用户不存在");
         List<ChatInboxItem> rows = chatThreadMapper.listInboxForUser(uid);
+        rows = rows.stream().filter(x -> x.getPeerUserId() != null).toList();
         return Result.success(rows);
     }
 
@@ -91,6 +108,9 @@ public class ChatController {
         if (!sameUser(uid, t.getSellerId()) && !sameUser(uid, t.getCustomerId())) {
             return Result.error("无权查看该会话");
         }
+        if (!ensureEcommercePair(t.getSellerId(), t.getCustomerId())) {
+            return Result.error("该会话不符合商城咨询规则");
+        }
         Product p = productMapper.selectById(t.getProductId());
         Long peerId = sameUser(uid, t.getSellerId()) ? t.getCustomerId() : t.getSellerId();
         User peer = peerId != null ? userMapper.findById(peerId) : null;
@@ -117,15 +137,24 @@ public class ChatController {
     }
 
     private Result buildProductContext(Long uid, Long productId) {
+        User me = userMapper.findById(uid);
+        if (me == null) return Result.error("用户不存在");
         Product p = productMapper.selectById(productId);
         if (p == null) {
             return Result.error("商品不存在");
         }
         if (p.getSellerId() == null) {
-            return Result.error("商品缺少卖家信息");
+            return Result.error("商品缺少商家信息");
+        }
+        User seller = userMapper.findById(p.getSellerId());
+        if (seller == null || !isAdminRole(seller.getRole())) {
+            return Result.error("该商品暂未绑定商家客服");
         }
         if (sameUser(uid, p.getSellerId())) {
-            return Result.error("这是您自己发布的商品，无需联系卖家");
+            return Result.error("这是您自己负责的商品，无需咨询");
+        }
+        if (isAdminRole(me.getRole())) {
+            return Result.error("管理员请在后台处理订单与消息");
         }
         ChatThread thread = ensureThread(productId, p.getSellerId(), uid);
         Map<String, Object> map = new LinkedHashMap<>();
@@ -137,7 +166,7 @@ public class ChatController {
         map.put("orderId", null);
         map.put("orderNo", null);
         map.put("peerNickname", p.getSellerName());
-        map.put("chatTitle", "咨询：" + (p.getName() != null ? p.getName() : "商品"));
+        map.put("chatTitle", "咨询商家：" + (p.getName() != null ? p.getName() : "商品"));
         return Result.success(map);
     }
 
@@ -147,10 +176,13 @@ public class ChatController {
             return Result.error("订单不存在");
         }
         if (o.getSellerId() == null) {
-            return Result.error("订单缺少卖家信息");
+            return Result.error("订单缺少商家信息");
         }
         if (!sameUser(uid, o.getBuyerId()) && !sameUser(uid, o.getSellerId())) {
             return Result.error("无权查看该会话");
+        }
+        if (!ensureEcommercePair(o.getSellerId(), o.getBuyerId())) {
+            return Result.error("该订单未绑定商家客服会话");
         }
         ChatThread thread = ensureThread(o.getProductId(), o.getSellerId(), o.getBuyerId());
         Map<String, Object> map = new LinkedHashMap<>();
@@ -164,7 +196,7 @@ public class ChatController {
         User sellerU = o.getSellerId() != null ? userMapper.findById(o.getSellerId()) : null;
         map.put("peerNickname", sameUser(uid, o.getSellerId())
                 ? (buyerU != null && StringUtils.hasText(buyerU.getNickname()) ? buyerU.getNickname() : "买家")
-                : (sellerU != null && StringUtils.hasText(sellerU.getNickname()) ? sellerU.getNickname() : "卖家"));
+                : (sellerU != null && StringUtils.hasText(sellerU.getNickname()) ? sellerU.getNickname() : "商家"));
         map.put("chatTitle", "订单沟通：" + (o.getProductName() != null ? o.getProductName() : "商品"));
         Product p = productMapper.selectById(o.getProductId());
         map.put("sellerName", p != null ? p.getSellerName() : null);
@@ -201,6 +233,9 @@ public class ChatController {
         }
         if (!sameUser(uid, thread.getSellerId()) && !sameUser(uid, thread.getCustomerId())) {
             return Result.error("无权查看该会话");
+        }
+        if (!ensureEcommercePair(thread.getSellerId(), thread.getCustomerId())) {
+            return Result.error("该会话不符合商城咨询规则");
         }
         if (orderId != null) {
             Order o = orderMapper.findByIdWithProduct(orderId);
@@ -255,7 +290,10 @@ public class ChatController {
                 return Result.error("会话不存在");
             }
             if (!sameUser(uid, th.getSellerId()) && !sameUser(uid, th.getCustomerId())) {
-                return Result.error("无权发送私信");
+                return Result.error("无权发送消息");
+            }
+            if (!ensureEcommercePair(th.getSellerId(), th.getCustomerId())) {
+                return Result.error("该会话不符合商城咨询规则");
             }
             resolvedThreadId = threadId;
             productIdForMsg = th.getProductId();
@@ -274,10 +312,15 @@ public class ChatController {
                 return Result.error("商品不存在");
             }
             if (p.getSellerId() == null) {
-                return Result.error("商品缺少卖家信息");
+                return Result.error("商品缺少商家信息");
             }
             if (sameUser(uid, p.getSellerId())) {
-                return Result.error("不能给自己发私信");
+                return Result.error("不能给自己发消息");
+            }
+            User me = userMapper.findById(uid);
+            User seller = userMapper.findById(p.getSellerId());
+            if (me == null || seller == null || !isUserRole(me.getRole()) || !isAdminRole(seller.getRole())) {
+                return Result.error("仅支持用户咨询商家");
             }
             ChatThread th = ensureThread(productIdParam, p.getSellerId(), uid);
             resolvedThreadId = th.getId();
@@ -289,7 +332,10 @@ public class ChatController {
                 return Result.error("订单不存在");
             }
             if (!sameUser(uid, o.getBuyerId()) && !sameUser(uid, o.getSellerId())) {
-                return Result.error("无权发送私信");
+                return Result.error("无权发送消息");
+            }
+            if (!ensureEcommercePair(o.getSellerId(), o.getBuyerId())) {
+                return Result.error("仅支持用户与商家沟通");
             }
             ChatThread th = ensureThread(o.getProductId(), o.getSellerId(), o.getBuyerId());
             resolvedThreadId = th.getId();
@@ -304,6 +350,9 @@ public class ChatController {
         }
         if (th.getSellerId() == null || th.getCustomerId() == null) {
             return Result.error("会话数据异常");
+        }
+        if (!ensureEcommercePair(th.getSellerId(), th.getCustomerId())) {
+            return Result.error("该会话不符合商城咨询规则");
         }
         long receiverId = sameUser(uid, th.getCustomerId()) ? longId(th.getSellerId()) : longId(th.getCustomerId());
 

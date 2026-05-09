@@ -15,4 +15,5 @@ public class ProductReview {
     private Date createTime;
     private String nickname;
     private String avatar;
+    private String productName;
 }

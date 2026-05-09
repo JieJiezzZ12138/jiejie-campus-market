@@ -1,8 +1,8 @@
 <template>
-  <div class="inbox-wrap">
-    <el-page-header @back="router.push('/')">
+  <div class="inbox-wrap" :class="{ 'embedded-mode': props.adminEmbedded }">
+    <el-page-header v-if="!props.adminEmbedded" @back="goBackToAdmin">
       <template #content>
-        <span class="page-title">我的私信</span>
+        <span class="page-title">站内消息</span>
       </template>
     </el-page-header>
 
@@ -16,7 +16,7 @@
 
       <el-empty
         v-if="!loading && rows.length === 0"
-        description="暂无会话。可在商品页「联系卖家」或订单里「私信」开始聊天。"
+        description="暂无会话。可在商品页「咨询商家」或订单里「消息」开始沟通。"
       />
       <el-table
         v-else
@@ -66,6 +66,19 @@ import { useRouter } from 'vue-router'
 import request from '../utils/request'
 
 const router = useRouter()
+const props = withDefaults(defineProps<{ adminEmbedded?: boolean }>(), {
+  adminEmbedded: false
+})
+
+const goBackToAdmin = () => {
+  if (props.adminEmbedded) return
+  const role = localStorage.getItem('user_role')
+  if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
+    router.push('/admin')
+    return
+  }
+  router.push('/')
+}
 const rows = ref([])
 const loading = ref(false)
 
@@ -84,7 +97,9 @@ const loadInbox = async () => {
 
 const openThread = (row) => {
   if (!row?.threadId) return
-  router.push(`/chat/thread/${row.threadId}`)
+  const role = localStorage.getItem('user_role')
+  const fromAdmin = props.adminEmbedded || role === 'ADMIN' || role === 'SUPER_ADMIN'
+  router.push(fromAdmin ? `/chat/thread/${row.threadId}?from=admin` : `/chat/thread/${row.threadId}`)
 }
 
 const rowClassName = ({ row }) => {
@@ -121,6 +136,9 @@ onActivated(() => {
   border: 1px solid rgba(31, 122, 111, 0.08);
   box-shadow: var(--shadow-1);
   background: rgba(255, 255, 255, 0.95);
+}
+.inbox-wrap.embedded-mode .inbox-card {
+  margin-top: 0;
 }
 .card-h {
   display: flex;
