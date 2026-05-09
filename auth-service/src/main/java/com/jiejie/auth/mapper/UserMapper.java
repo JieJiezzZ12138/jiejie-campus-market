@@ -18,11 +18,14 @@ public interface UserMapper {
     @Select("SELECT * FROM sys_user WHERE phone = #{phone} LIMIT 1")
     SysUser findByPhone(@Param("phone") String phone);
 
+    @Select("SELECT * FROM sys_user WHERE email = #{email} LIMIT 1")
+    SysUser findByEmail(@Param("email") String email);
+
     @Select("SELECT * FROM sys_user WHERE id = #{id}")
     SysUser findById(@Param("id") Long id);
 
-    @Insert("INSERT INTO sys_user (username, password, nickname, avatar, phone, role, audit_status, campus_address, create_time) " +
-            "VALUES (#{username}, #{password}, #{nickname}, #{avatar}, #{phone}, #{role}, #{auditStatus}, #{campusAddress}, NOW())")
+    @Insert("INSERT INTO sys_user (username, password, nickname, avatar, phone, email, role, audit_status, campus_address, create_time) " +
+            "VALUES (#{username}, #{password}, #{nickname}, #{avatar}, #{phone}, #{email}, #{role}, #{auditStatus}, #{campusAddress}, NOW())")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     void insert(SysUser user);
 
@@ -33,4 +36,7 @@ public interface UserMapper {
     // 👉 管理员用：封禁或解封用户
     @Update("UPDATE sys_user SET audit_status = #{status} WHERE id = #{id}")
     void updateAuditStatus(@Param("id") Long id, @Param("status") Integer status);
+
+    @Update("UPDATE sys_user SET password = #{password} WHERE id = #{id}")
+    int updatePassword(@Param("id") Long id, @Param("password") String password);
 }

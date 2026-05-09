@@ -17,8 +17,8 @@
 - `DEPLOY_PORT`: SSH 端口（可选，默认 22）
 - `DEPLOY_USER`: SSH 用户
 - `DEPLOY_SSH_KEY`: 私钥内容（建议专用部署密钥）
-- `DEPLOY_PATH`: 服务器部署目录（例如 `/opt/my-system-cloud`）
-- `DEPLOY_SCRIPT`: 服务器上的部署脚本路径（可选，例如 `/opt/my-system-cloud/deploy.sh`）
+- `DEPLOY_PATH`: 服务器部署目录（例如 `/opt/jemall`）
+- `DEPLOY_SCRIPT`: 服务器上的部署脚本路径（可选，例如 `/opt/jemall/deploy.sh`）
 
 ## 建议的服务器 deploy.sh 示例
 将下列脚本放在服务器（路径与 `DEPLOY_SCRIPT` 一致）：
@@ -30,7 +30,7 @@ set -euo pipefail
 RELEASE_DIR="$1"
 BACKEND_DIR="$RELEASE_DIR/backend"
 FRONTEND_DIST="$RELEASE_DIR/frontend/dist"
-APP_HOME="/opt/my-system-cloud"
+APP_HOME="/opt/jemall"
 
 mkdir -p "$APP_HOME"
 cp -f "$BACKEND_DIR"/*.jar "$APP_HOME"/

@@ -8,6 +8,7 @@ public class SysUser {
     private String role;
     private String avatar;
     private String phone;
+    private String email;
     private Integer auditStatus; // 0-封禁, 1-正常, 2-待审核
     private String campusAddress;
 
@@ -26,6 +27,8 @@ public class SysUser {
     public void setAvatar(String avatar) { this.avatar = avatar; }
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
     public Integer getAuditStatus() { return auditStatus; }
     public void setAuditStatus(Integer auditStatus) { this.auditStatus = auditStatus; }
     public String getCampusAddress() { return campusAddress; }

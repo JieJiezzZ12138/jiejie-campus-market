@@ -4,17 +4,18 @@
       <div class="header-content">
         <div class="logo" @click="router.push('/')">
           <el-icon size="28" color="#409EFF"><ShoppingBag /></el-icon>
-          <span class="logo-text">JieJie 校园集市</span>
+          <span class="logo-text">杰物 Jemall</span>
         </div>
         
         <div class="search-box">
-          <el-input v-model="searchQuery" placeholder="搜索你想要的闲置物品..." class="search-input" clearable @keyup.enter="handleSearch" @clear="handleSearch">
+          <el-input v-model="searchQuery" placeholder="搜索你想要的商品..." class="search-input" clearable @keyup.enter="handleSearch" @clear="handleSearch">
             <template #append><el-button :icon="Search" @click="handleSearch" /></template>
           </el-input>
         </div>
 
         <div class="user-actions">
-          <el-button type="primary" plain :icon="Plus" round @click="publishVisible = true">发布闲置</el-button>
+          <el-button type="primary" plain :icon="Plus" round @click="publishVisible = true">发布商品</el-button>
+          <el-button type="warning" plain round @click="openFavoriteDrawer">我的收藏</el-button>
           
           <el-badge :value="threadCount" :hidden="threadCount === 0" :max="99" class="msg-badge">
             <el-icon size="24" class="action-icon" title="我的私信" @click="router.push('/messages')"><ChatDotRound /></el-icon>
@@ -50,7 +51,7 @@
                   </el-badge>
                 </el-dropdown-item>
                 <el-dropdown-item @click="router.push('/profile')">个人资料</el-dropdown-item>
-                <el-dropdown-item v-if="userInfo.role === 'ADMIN'" @click="router.push('/admin')">进入后台</el-dropdown-item>
+                <el-dropdown-item v-if="userInfo.role === 'ADMIN' || userInfo.role === 'SUPER_ADMIN'" @click="router.push('/admin')">进入后台</el-dropdown-item>
                 <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -61,28 +62,47 @@
 
     <div class="mall-main">
       <el-carousel height="300px" class="banner-carousel" indicator-position="outside">
-        <el-carousel-item v-for="(banner, index) in banners" :key="index">
-          <div class="banner-content" :style="{ backgroundColor: banner.color }">
+        <el-carousel-item v-for="banner in banners" :key="banner.id || banner.title">
+          <div class="banner-content" :style="{ backgroundColor: banner.color || banner.bgColor }">
             <h2>{{ banner.title }}</h2>
             <p>{{ banner.subtitle }}</p>
           </div>
         </el-carousel-item>
       </el-carousel>
 
+      <el-alert
+        v-for="n in notices"
+        :key="n.id"
+        :title="n.title"
+        :description="n.content"
+        type="info"
+        show-icon
+        :closable="false"
+        style="margin-bottom:10px;"
+      />
+
       <div class="category-tabs">
-        <el-tabs v-model="activeCategory" @tab-change="handleSearch">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+          <el-tabs v-model="activeCategory" @tab-change="handleSearch">
           <el-tab-pane label="🚀 全部商品" name=""></el-tab-pane>
           <el-tab-pane label="💻 数码电子" name="数码电子"></el-tab-pane>
           <el-tab-pane label="📚 书籍资料" name="书籍资料"></el-tab-pane>
           <el-tab-pane label="👗 衣物鞋帽" name="衣物鞋帽"></el-tab-pane>
           <el-tab-pane label="🧴 生活用品" name="生活用品"></el-tab-pane>
-          <el-tab-pane label="📦 其他闲置" name="其他闲置"></el-tab-pane>
-        </el-tabs>
+          <el-tab-pane label="📦 其他商品" name="其他商品"></el-tab-pane>
+          </el-tabs>
+          <el-select v-model="sortBy" placeholder="排序方式" style="width: 180px;" @change="handleSearch">
+            <el-option label="新品优先" value="new_desc" />
+            <el-option label="价格从低到高" value="price_asc" />
+            <el-option label="价格从高到低" value="price_desc" />
+            <el-option label="销量优先" value="sales_desc" />
+          </el-select>
+        </div>
       </div>
 
       <el-row :gutter="20" class="product-grid">
-        <el-col :span="6" v-for="(item, index) in productList" :key="item.id" style="margin-bottom: 20px;">
-          <el-card shadow="hover" :body-style="{ padding: '0px' }" class="product-card" :style="{ '--i': index }">
+        <el-col :span="6" v-for="(item, index) in pagedProductList" :key="item.id" style="margin-bottom: 20px;">
+          <el-card shadow="hover" :body-style="{ padding: '0px' }" class="product-card" :style="{ '--i': index }" @click="router.push(`/product/${item.id}`)">
             <div class="image-placeholder" :style="{ background: item.bgColor }">
               <el-icon v-if="!item.image && !item.imageUrl" size="40" color="#fff"><Picture /></el-icon>
               <img v-else :src="getImageUrl(item.image || item.imageUrl)" class="product-img" />
@@ -101,23 +121,37 @@
                 <span>{{ item.sellerAddress || '校内面交' }}</span>
               </div>
               
-              <div class="seller-info">
-                <div class="seller-tag">
-                  <el-avatar :size="20" :src="item.sellerAvatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'" />
-                  <span class="seller-name">{{ item.sellerName || '匿名卖家' }}</span>
+                <div class="seller-info">
+                  <div class="seller-tag">
+                    <el-avatar :size="20" :src="item.sellerAvatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'" />
+                    <span class="seller-name">{{ item.sellerName || '匿名卖家' }}</span>
+                  </div>
+                  <div class="seller-actions">
+                    <el-button type="warning" size="small" plain @click.stop="toggleFavorite(item)">
+                      {{ favoriteSet.has(item.id) ? '取消收藏' : '收藏' }}
+                    </el-button>
+                    <el-button type="info" size="small" plain @click.stop="openReviewDialog(item)">评价</el-button>
+                    <el-button type="success" size="small" plain @click.stop="contactSeller(item)">联系卖家</el-button>
+                    <el-button type="primary" size="small" circle :icon="ShoppingCart" @click.stop="addToCart(item)" />
+                  </div>
                 </div>
-                <div class="seller-actions">
-                  <el-button type="success" size="small" plain @click.stop="contactSeller(item)">联系卖家</el-button>
-                  <el-button type="primary" size="small" circle :icon="ShoppingCart" @click.stop="addToCart(item)" />
-                </div>
-              </div>
             </div>
           </el-card>
         </el-col>
       </el-row>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+        <el-pagination
+          background
+          layout="total, prev, pager, next, sizes"
+          :total="productList.length"
+          v-model:current-page="pageNo"
+          v-model:page-size="pageSize"
+          :page-sizes="[8,12,16,20]"
+        />
+      </div>
     </div>
 
-    <el-dialog v-model="publishVisible" title="发布我的闲置" width="550px">
+    <el-dialog v-model="publishVisible" title="发布商品" width="550px">
       <el-form :model="publishForm" label-width="100px">
         <el-form-item label="商品图片" required>
           <el-upload
@@ -145,12 +179,24 @@
             <el-option label="书籍资料" value="书籍资料" />
             <el-option label="衣物鞋帽" value="衣物鞋帽" />
             <el-option label="生活用品" value="生活用品" />
-            <el-option label="其他闲置" value="其他闲置" />
+            <el-option label="其他商品" value="其他商品" />
           </el-select>
         </el-form-item>
 
         <el-form-item label="详细描述">
-          <el-input type="textarea" v-model="publishForm.description" :rows="3" placeholder="介绍一下你的闲置（如：几成新、购买时间、是否包邮等）" />
+          <el-input type="textarea" v-model="publishForm.description" :rows="3" placeholder="介绍一下商品（如：规格、成色、配送方式等）" />
+        </el-form-item>
+        <el-form-item label="规格颜色">
+          <el-input v-model="publishForm.specColors" placeholder="如：黑色,白色,红色" />
+        </el-form-item>
+        <el-form-item label="规格尺寸">
+          <el-input v-model="publishForm.specSizes" placeholder="如：S,M,L 或 128G,256G" />
+        </el-form-item>
+        <el-form-item label="秒杀活动">
+          <el-switch v-model="publishForm.isSeckill" :active-value="1" :inactive-value="0" />
+        </el-form-item>
+        <el-form-item label="秒杀价" v-if="publishForm.isSeckill === 1">
+          <el-input-number v-model="publishForm.seckillPrice" :min="0.1" :precision="2" :step="10" />
         </el-form-item>
 
         <el-form-item label="转手价格" required><el-input-number v-model="publishForm.price" :min="0.1" :precision="2" :step="10" /></el-form-item>
@@ -170,21 +216,80 @@
         <p>购物车空空如也，快去挑点宝贝吧~</p>
       </div>
       <div v-else class="cart-list">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <el-checkbox v-model="allChecked" @change="toggleAll">全选 / 反选</el-checkbox>
+        </div>
         <div v-for="item in cartList" :key="item.id" class="cart-item">
+          <el-checkbox v-model="checkedMap[item.productId || item.id]" />
           <img v-if="item.image || item.imageUrl" :src="getImageUrl(item.image || item.imageUrl)" class="cart-item-img" />
           <div v-else class="cart-item-img placeholder"><el-icon><Picture /></el-icon></div>
           <div class="cart-item-info">
             <h4 class="cart-item-title">{{ item.productName || item.name || '未知商品' }}</h4>
             <span class="cart-item-price">¥ {{ item.price }}</span>
           </div>
+          <el-input-number :model-value="item.quantity || 1" :min="1" :max="99" size="small" @change="(v)=>updateCartQuantity(item, v)" />
           <el-button type="danger" size="small" plain @click="removeFromCart(item)">移除</el-button>
         </div>
         <div class="cart-footer">
+          <div style="margin-bottom:10px;">
+            <el-select v-model="selectedCouponId" clearable placeholder="选择优惠券（可选）" style="width:100%;">
+              <el-option v-for="c in myCoupons" :key="c.id" :label="`${c.title}（满${c.thresholdAmount}减${c.discountAmount}）`" :value="c.id" />
+            </el-select>
+          </div>
           <div class="total-price">合计: <span>¥ {{ cartTotalPrice }}</span></div>
           <el-button type="success" size="large" style="width: 100%;" @click="handleCheckout" :loading="checkoutLoading">马上结算</el-button>
         </div>
       </div>
     </el-drawer>
+
+    <el-drawer v-model="favoriteVisible" title="我的收藏" size="460px">
+      <el-empty v-if="favoriteProducts.length === 0" description="你还没有收藏商品" />
+      <div v-else class="fav-list">
+        <div v-for="item in favoriteProducts" :key="item.id" class="fav-item">
+          <img v-if="item.image || item.imageUrl" :src="getImageUrl(item.image || item.imageUrl)" class="fav-img" />
+          <div v-else class="fav-img placeholder"><el-icon><Picture /></el-icon></div>
+          <div class="fav-info">
+            <div class="fav-name">{{ item.name }}</div>
+            <div class="fav-price">￥{{ item.price }}</div>
+            <div class="fav-actions">
+              <el-button size="small" type="primary" plain @click="addToCart(item)">加入购物车</el-button>
+              <el-button size="small" type="success" plain @click="contactSeller(item)">联系卖家</el-button>
+              <el-button size="small" type="danger" plain @click="toggleFavorite(item)">取消收藏</el-button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </el-drawer>
+
+    <el-dialog v-model="reviewVisible" :title="`商品评价 - ${currentReviewProduct?.name || ''}`" width="560px">
+      <el-rate v-model="reviewForm.rating" :max="5" style="margin-bottom: 12px;" />
+      <el-input
+        v-model="reviewForm.content"
+        type="textarea"
+        :rows="4"
+        maxlength="500"
+        show-word-limit
+        placeholder="请输入评价内容"
+      />
+      <div style="margin-top: 12px;">
+        <el-input v-model="reviewForm.imageUrl" placeholder="评价图片URL（可选）" />
+      </div>
+      <div style="margin-top: 14px;">
+        <el-button type="primary" :loading="reviewSubmitting" @click="submitReview">提交评价</el-button>
+        <el-button @click="loadReviewList">刷新评价</el-button>
+      </div>
+      <el-divider content-position="left">已有评价</el-divider>
+      <el-empty v-if="reviewList.length === 0" description="暂无评价" />
+      <div v-else class="review-list">
+        <div v-for="r in reviewList" :key="r.id" class="review-item">
+          <div class="review-head">
+            <span>{{ r.nickname || `用户${r.userId}` }}</span>
+            <el-rate :model-value="r.rating" disabled />
+          </div>
+          <p class="review-content">{{ r.content }}</p>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -223,11 +328,28 @@ watch(
 
 const searchQuery = ref('')
 const activeCategory = ref('')
+const sortBy = ref('new_desc')
 const productList = ref([])
-const banners = [
-  { title: '毕业季大甩卖', subtitle: '全场闲置 1 折起，学长学姐吐血推荐', color: '#a0cfff' },
-  { title: '校园数码节', subtitle: '二手电脑/平板/相机 淘好物', color: '#f3d19e' }
+const pageNo = ref(1)
+const pageSize = ref(8)
+const pagedProductList = computed(() => {
+  const start = (pageNo.value - 1) * pageSize.value
+  return productList.value.slice(start, start + pageSize.value)
+})
+const favoriteSet = ref(new Set())
+const favoriteVisible = ref(false)
+const favoriteProducts = ref<any[]>([])
+const reviewVisible = ref(false)
+const currentReviewProduct = ref<any>(null)
+const reviewList = ref([])
+const reviewSubmitting = ref(false)
+const reviewForm = ref({ rating: 5, content: '', imageUrl: '' })
+const defaultBanners = [
+  { title: '杰物 618 狂欢', subtitle: '爆款好物限时直降，低价不等人', color: '#a0cfff' },
+  { title: '数码焕新季', subtitle: '手机/平板/耳机爆款上新，品质优选', color: '#f3d19e' }
 ]
+const banners = ref<any[]>([...defaultBanners])
+const notices = ref([])
 
 const getImageUrl = (url) => {
   return resolveImageUrl(url)
@@ -240,7 +362,8 @@ const fetchProducts = async () => {
     const res = await request.get('/product/list', { 
       params: { 
         keyword: searchQuery.value,
-        category: activeCategory.value 
+        category: activeCategory.value,
+        sortBy: sortBy.value
       } 
     })
     const colors = ['#ffb8b8', '#b8e9ff', '#b8ffc9', '#ffdfb8', '#e1b8ff', '#b8fff4']
@@ -248,14 +371,96 @@ const fetchProducts = async () => {
       ...item,
       bgColor: colors[index % colors.length]
     }))
+    pageNo.value = 1
+    refreshFavoriteProducts()
   } catch (error) {
     console.error("获取商品失败:", error)
   }
 }
 
+const refreshFavoriteProducts = () => {
+  favoriteProducts.value = (productList.value || []).filter((x) => favoriteSet.value.has(Number(x.id)))
+}
+
+const fetchFavorites = async () => {
+  try {
+    const ids = await request.get('/product/favorite/list')
+    favoriteSet.value = new Set((ids || []).map((id) => Number(id)))
+    refreshFavoriteProducts()
+  } catch (e) {
+    favoriteSet.value = new Set()
+    favoriteProducts.value = []
+  }
+}
+
+const openFavoriteDrawer = async () => {
+  if (!productList.value.length) {
+    await fetchProducts()
+  }
+  refreshFavoriteProducts()
+  favoriteVisible.value = true
+}
+
+const toggleFavorite = async (item) => {
+  try {
+    const res = await request.post(`/product/favorite/toggle?productId=${item.id}`)
+    if (res?.favorited) {
+      favoriteSet.value.add(Number(item.id))
+      ElMessage.success('收藏成功')
+    } else {
+      favoriteSet.value.delete(Number(item.id))
+      ElMessage.success('已取消收藏')
+    }
+    refreshFavoriteProducts()
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const openReviewDialog = async (item) => {
+  currentReviewProduct.value = item
+  reviewVisible.value = true
+  reviewForm.value = { rating: 5, content: '', imageUrl: '' }
+  await loadReviewList()
+}
+
+const loadReviewList = async () => {
+  if (!currentReviewProduct.value?.id) return
+  try {
+    const res = await request.get('/product/review/list', { params: { productId: currentReviewProduct.value.id } })
+    reviewList.value = res || []
+  } catch (e) {
+    console.error(e)
+    reviewList.value = []
+  }
+}
+
+const submitReview = async () => {
+  if (!currentReviewProduct.value?.id) return
+  const c = reviewForm.value.content?.trim()
+  if (!c) return ElMessage.warning('请填写评价内容')
+  reviewSubmitting.value = true
+  try {
+    await request.post('/product/review/add', {
+      productId: currentReviewProduct.value.id,
+      rating: reviewForm.value.rating,
+      content: c,
+      imageUrl: reviewForm.value.imageUrl?.trim() || ''
+    })
+    ElMessage.success('评价提交成功')
+    reviewForm.value.content = ''
+    reviewForm.value.imageUrl = ''
+    await loadReviewList()
+  } catch (e) {
+    console.error(e)
+  } finally {
+    reviewSubmitting.value = false
+  }
+}
+
 const publishVisible = ref(false)
 const publishLoading = ref(false)
-const publishForm = ref({ name: '', description: '', category: '其他闲置', price: 0, originalPrice: 0, image: '' })
+const publishForm = ref({ name: '', description: '', category: '其他商品', price: 0, originalPrice: 0, image: '', specColors: '', specSizes: '', isSeckill: 0, seckillPrice: 0 })
 
 const localToken = localStorage.getItem('token') || localStorage.getItem('jiejie_assignment_token') || ''
 const uploadHeaders = localToken ? { Authorization: `Bearer ${localToken}` } : {}
@@ -312,10 +517,17 @@ const submitPublish = async () => {
   
   publishLoading.value = true
   try {
-    await request.post('/product/publish', publishForm.value)
+    const specJson = JSON.stringify({
+      colors: (publishForm.value.specColors || '').split(',').map(s => s.trim()).filter(Boolean),
+      sizes: (publishForm.value.specSizes || '').split(',').map(s => s.trim()).filter(Boolean)
+    })
+    await request.post('/product/publish', {
+      ...publishForm.value,
+      specJson
+    })
     ElMessage.success('发布成功，商品已上架！')
     publishVisible.value = false 
-    publishForm.value = { name: '', description: '', category: '其他闲置', price: 0, originalPrice: 0, image: '' }
+    publishForm.value = { name: '', description: '', category: '其他商品', price: 0, originalPrice: 0, image: '', specColors: '', specSizes: '', isSeckill: 0, seckillPrice: 0 }
     fetchProducts() 
   } catch (error) {
     console.error("发布失败", error)
@@ -356,19 +568,79 @@ const handleOrderNoticeEvent = (e) => {
   }
 }
 
+const fetchBannersAndNotices = async () => {
+  try {
+    const bannerRes = await request.get('/user/banner/list')
+    if (Array.isArray(bannerRes) && bannerRes.length > 0) {
+      banners.value = bannerRes
+    } else {
+      banners.value = [...defaultBanners]
+    }
+  } catch {
+    banners.value = [...defaultBanners]
+  }
+
+  try {
+    notices.value = await request.get('/user/notice/list?limit=3') || []
+  } catch {
+    notices.value = []
+  }
+}
+
 const cartVisible = ref(false)
 const cartList = ref([])
+const myCoupons = ref([])
+const selectedCouponId = ref<number | null>(null)
+const checkedMap = ref<Record<string, boolean>>({})
+const allChecked = ref(false)
 
 const cartTotalPrice = computed(() => {
-  return cartList.value.reduce((total, item) => total + item.price, 0).toFixed(2)
+  return cartList.value.reduce((total, item) => {
+    const id = item.productId || item.id
+    if (!checkedMap.value[id]) return total
+    return total + Number(item.price || 0) * Number(item.quantity || 1)
+  }, 0).toFixed(2)
 })
 
 const fetchCart = async () => {
   try {
     const res = await request.get('/cart/list')
     cartList.value = res || []
+    const next = {}
+    cartList.value.forEach((item) => {
+      const id = item.productId || item.id
+      next[id] = checkedMap.value[id] ?? true
+    })
+    checkedMap.value = next
+    allChecked.value = cartList.value.length > 0 && cartList.value.every((x) => checkedMap.value[x.productId || x.id])
   } catch (error) {
     console.error("获取购物车失败", error)
+  }
+}
+
+const fetchMyCoupons = async () => {
+  try {
+    myCoupons.value = await request.get('/order/coupon/my') || []
+  } catch {
+    myCoupons.value = []
+  }
+}
+
+const toggleAll = (v) => {
+  cartList.value.forEach((item) => {
+    checkedMap.value[item.productId || item.id] = !!v
+  })
+}
+
+const updateCartQuantity = async (item, v) => {
+  const q = Number(v || 1)
+  const pid = item.productId || item.id
+  try {
+    await request.post(`/cart/quantity?productId=${pid}&quantity=${q}`)
+    item.quantity = q
+  } catch (e) {
+    console.error(e)
+    fetchCart()
   }
 }
 
@@ -378,7 +650,14 @@ const addToCart = async (product) => {
     return ElMessage.warning('不能把自己的商品加入购物车')
   }
   try {
-    await request.post(`/cart/add?productId=${product.id}`)
+    let selectedSpec = ''
+    try {
+      const spec = product.specJson ? JSON.parse(product.specJson) : {}
+      const c = Array.isArray(spec.colors) && spec.colors.length ? spec.colors[0] : ''
+      const s = Array.isArray(spec.sizes) && spec.sizes.length ? spec.sizes[0] : ''
+      selectedSpec = [c, s].filter(Boolean).join('/')
+    } catch {}
+    await request.post(`/cart/add-with-spec?productId=${product.id}&selectedSpec=${encodeURIComponent(selectedSpec)}`)
     ElMessage.success(`《${product.name}》已加入购物车！`)
     fetchCart() 
   } catch (error) {
@@ -400,10 +679,12 @@ const removeFromCart = async (item) => {
 
 const checkoutLoading = ref(false)
 const handleCheckout = async () => {
-  if (cartList.value.length === 0) return ElMessage.warning('购物车是空的哦')
+  const selected = cartList.value.filter((x) => checkedMap.value[x.productId || x.id])
+  if (selected.length === 0) return ElMessage.warning('请先勾选要结算的商品')
   checkoutLoading.value = true
   try {
-    await request.post(`/order/checkout?totalAmount=${cartTotalPrice.value}`)
+    const couponParam = selectedCouponId.value ? `&couponId=${selectedCouponId.value}` : ''
+    await request.post(`/order/checkout?totalAmount=${cartTotalPrice.value}${couponParam}`)
     await ElMessageBox.alert('订单已生成，请前往订单中心完成支付', '🎉 下单成功', { 
       confirmButtonText: '去支付', type: 'success', center: true 
     })
@@ -422,8 +703,11 @@ const handleCheckout = async () => {
 onMounted(() => {
   fetchProducts()
   fetchCart()
+  fetchFavorites()
   fetchThreadCount()
   fetchOrderNoticeCount()
+  fetchMyCoupons()
+  fetchBannersAndNotices()
   window.addEventListener('order-notice-count', handleOrderNoticeEvent)
 })
 
@@ -590,6 +874,18 @@ const handleLogout = () => {
 .cart-item-title { margin: 0 0 8px 0; font-size: 14px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cart-item-price { color: #e76f51; font-weight: 700; }
 .cart-footer { margin-top: auto; padding-top: 20px; border-top: 2px solid #eee; }
+.fav-list { display: flex; flex-direction: column; gap: 10px; }
+.fav-item { display: flex; gap: 10px; padding: 10px; border: 1px solid #ebeef5; border-radius: 8px; }
+.fav-img { width: 72px; height: 72px; border-radius: 8px; object-fit: cover; background: #f6f7f8; }
+.fav-img.placeholder { display: flex; align-items: center; justify-content: center; color: #909399; }
+.fav-info { flex: 1; min-width: 0; }
+.fav-name { font-size: 14px; font-weight: 600; color: #303133; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fav-price { margin: 6px 0; color: #f56c6c; font-weight: 700; }
+.fav-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.review-list { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.review-item { border: 1px solid #ebeef5; border-radius: 8px; padding: 10px; background: #fafafa; }
+.review-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.review-content { margin: 0; font-size: 13px; color: #606266; line-height: 1.5; white-space: pre-wrap; }
 .total-price { font-size: 16px; font-weight: 700; margin-bottom: 15px; text-align: right; }
 .total-price span { color: #e76f51; font-size: 24px; }
 :deep(.avatar-uploader .el-upload) { border: 1px dashed var(--el-border-color); border-radius: 10px; cursor: pointer; position: relative; overflow: hidden; transition: var(--el-transition-duration-fast); }

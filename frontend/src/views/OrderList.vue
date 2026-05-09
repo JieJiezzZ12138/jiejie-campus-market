@@ -54,7 +54,17 @@
         </el-tab-pane>
       </el-tabs>
 
-      <el-table :data="orderList" v-loading="loading" style="width: 100%" border stripe :row-class-name="orderRowClass">
+      <div class="status-filter">
+        <span class="status-filter-label">状态筛选</span>
+        <el-select v-model="statusFilter" clearable placeholder="全部状态" style="width: 180px;">
+          <el-option label="待支付" :value="0" />
+          <el-option label="待发货" :value="1" />
+          <el-option label="已发货" :value="2" />
+          <el-option label="已完成" :value="3" />
+        </el-select>
+      </div>
+
+      <el-table :data="pagedOrderList" v-loading="loading" style="width: 100%" border stripe :row-class-name="orderRowClass">
         <el-table-column label="订单信息" min-width="680">
           <template #default="scope">
             <div class="order-info-two-rows">
@@ -134,10 +144,55 @@
               >
                 确认收货
               </el-button>
+              <el-button
+                v-if="orderScope === 'buyer' && scope.row.orderStatus === 0"
+                type="info"
+                size="small"
+                @click="handleCancel(scope.row)"
+              >
+                取消订单
+              </el-button>
+              <el-button
+                v-if="orderScope === 'buyer' && (scope.row.orderStatus === 1 || scope.row.orderStatus === 2)"
+                type="danger"
+                size="small"
+                @click="handleRefund(scope.row)"
+              >
+                申请退款
+              </el-button>
+              <el-button
+                v-if="orderScope === 'seller' && scope.row.orderStatus === 6"
+                type="success"
+                size="small"
+                @click="handleApproveRefund(scope.row)"
+              >
+                同意退款
+              </el-button>
+              <el-button
+                v-if="orderScope === 'seller' && scope.row.orderStatus === 6"
+                type="danger"
+                size="small"
+                @click="handleRejectRefund(scope.row)"
+              >
+                拒绝退款
+              </el-button>
+              <el-button type="primary" size="small" plain @click="showLogistics(scope.row)">
+                查看物流
+              </el-button>
             </el-space>
           </template>
         </el-table-column>
       </el-table>
+      <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+        <el-pagination
+          background
+          layout="total, prev, pager, next, sizes"
+          :total="filteredOrderList.length"
+          v-model:current-page="pageNo"
+          v-model:page-size="pageSize"
+          :page-sizes="[5,10,20,30]"
+        />
+      </div>
     </el-card>
 
     <el-dialog v-model="feedbackVisible" title="请求管理员协助" width="520px" destroy-on-close>
@@ -262,6 +317,18 @@
         <el-button type="primary" @click="orderDetailChat">私信沟通</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="logisticsVisible" title="物流信息" width="520px">
+      <div v-if="logisticsData">
+        <p>物流公司：{{ logisticsData.company }}</p>
+        <p>物流单号：{{ logisticsData.trackingNo }}</p>
+        <el-timeline>
+          <el-timeline-item v-for="(x, i) in logisticsData.traces || []" :key="i" :timestamp="new Date(x.time).toLocaleString()">
+            {{ x.status }}
+          </el-timeline-item>
+        </el-timeline>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -296,9 +363,15 @@ const noticeTypeOptions = [
   { label: '新订单', value: 'NEW_ORDER' },
   { label: '已付款', value: 'PAID' },
   { label: '已发货', value: 'SHIPPED' },
-  { label: '已收货', value: 'RECEIVED' }
+  { label: '已收货', value: 'RECEIVED' },
+  { label: '退款申请', value: 'REFUND_PENDING' },
+  { label: '退款同意', value: 'REFUND_APPROVED' },
+  { label: '退款拒绝', value: 'REFUND_REJECTED' }
 ]
 const highlightOrderId = ref(null)
+const statusFilter = ref<number | null>(null)
+const pageNo = ref(1)
+const pageSize = ref(10)
 let highlightTimer = null
 
 const currentScopeNoticeCount = computed(() => {
@@ -312,16 +385,30 @@ const filteredNoticeList = computed(() => {
   return noticeList.value.filter((n) => n.noticeType === noticeTypeFilter.value)
 })
 
+const filteredOrderList = computed(() => {
+  if (statusFilter.value === null || statusFilter.value === undefined) return orderList.value
+  return orderList.value.filter((o) => Number(o.orderStatus) === Number(statusFilter.value))
+})
+const pagedOrderList = computed(() => {
+  const start = (pageNo.value - 1) * pageSize.value
+  return filteredOrderList.value.slice(start, start + pageSize.value)
+})
+
 const feedbackVisible = ref(false)
 const feedbackOrder = ref(null)
 const feedbackText = ref('')
 const feedbackLoading = ref(false)
+const logisticsVisible = ref(false)
+const logisticsData = ref<any>(null)
 
 const statusText = (s) => {
   if (s === 0) return '待支付'
   if (s === 1) return '已支付 / 待发货'
   if (s === 2) return '已发货'
   if (s === 3) return '已完成'
+  if (s === 4) return '已取消'
+  if (s === 5) return '已退款'
+  if (s === 6) return '退款待处理'
   return '未知'
 }
 
@@ -330,6 +417,9 @@ const statusTagType = (s) => {
   if (s === 1) return 'warning'
   if (s === 2) return 'success'
   if (s === 3) return 'success'
+  if (s === 4) return 'info'
+  if (s === 5) return 'warning'
+  if (s === 6) return 'warning'
   return 'info'
 }
 
@@ -368,6 +458,7 @@ const fetchOrderNoticeCount = async () => {
 }
 
 const onTabChange = () => {
+  pageNo.value = 1
   fetchOrders()
 }
 
@@ -431,6 +522,55 @@ const handleReceive = async (row) => {
   }
 }
 
+const handleCancel = async (row) => {
+  try {
+    await request.post(`/order/cancel?orderId=${row.id}`)
+    ElMessage.success('订单已取消')
+    fetchOrders()
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const handleRefund = async (row) => {
+  try {
+    await request.post(`/order/refund?orderId=${row.id}`)
+    ElMessage.success('退款申请已提交，等待卖家或管理员处理')
+    fetchOrders()
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const handleApproveRefund = async (row) => {
+  try {
+    await request.post(`/order/refund/approve?orderId=${row.id}`)
+    ElMessage.success('已同意退款')
+    fetchOrders()
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const handleRejectRefund = async (row) => {
+  try {
+    await request.post(`/order/refund/reject?orderId=${row.id}&rollbackStatus=1`)
+    ElMessage.success('已拒绝退款')
+    fetchOrders()
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const showLogistics = async (row) => {
+  try {
+    logisticsData.value = await request.get('/order/logistics', { params: { orderId: row.id } })
+    logisticsVisible.value = true
+  } catch (e) {
+    console.error(e)
+  }
+}
+
 const confirmPay = async () => {
   if (!currentOrder.value.id) return
 
@@ -454,6 +594,11 @@ const confirmPay = async () => {
 const openNoticeDrawer = async () => {
   noticeDrawerVisible.value = true
   noticeTypeFilter.value = 'ALL'
+  try {
+    await request.post(`/order/notice/read-all?scope=${orderScope.value}`)
+  } catch (e) {
+    console.error(e)
+  }
   await fetchNoticeList()
 }
 
@@ -492,6 +637,9 @@ const noticeText = (row) => {
   if (t === 'PAID') return '买家已付款'
   if (t === 'SHIPPED') return '卖家已发货'
   if (t === 'RECEIVED') return '买家已确认收货'
+  if (t === 'REFUND_PENDING') return '买家申请退款，等待处理'
+  if (t === 'REFUND_APPROVED') return '退款已同意'
+  if (t === 'REFUND_REJECTED') return '退款已被拒绝'
   return '订单状态更新'
 }
 
@@ -508,9 +656,7 @@ const orderRowClass = ({ row }) => {
 }
 
 const canManualRead = (row) => {
-  // 待处理类通知不允许手动清除，避免红点失效
-  const t = row?.noticeType
-  return t === 'RECEIVED'
+  return true
 }
 
 const openOrderDetail = async (row) => {
@@ -587,6 +733,16 @@ onBeforeUnmount(() => {
 }
 .order-tabs {
   margin-bottom: 16px;
+}
+.status-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.status-filter-label {
+  font-size: 13px;
+  color: #606266;
 }
 .card-header {
   display: flex;

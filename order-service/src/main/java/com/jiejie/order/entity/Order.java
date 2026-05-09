@@ -31,4 +31,8 @@ public class Order {
     private String sellerNickname;
     private String sellerUsername;
     private String sellerPhone;
+    private String selectedSpec;
+    private Long couponId;
+    private String couponTitle;
+    private BigDecimal discountAmount;
 }

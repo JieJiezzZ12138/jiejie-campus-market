@@ -16,4 +16,5 @@ public class Cart {
     // 👉 新增：用于接收商品图片的字段
     private String image;
     private String imageUrl;
+    private String selectedSpec;
 }

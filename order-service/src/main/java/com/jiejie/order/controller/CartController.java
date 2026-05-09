@@ -44,6 +44,13 @@ public class CartController {
      */
     @PostMapping("/add")
     public Result addToCart(@RequestParam("productId") Long productId, HttpServletRequest request) {
+        return addToCart(productId, null, request);
+    }
+
+    @PostMapping("/add-with-spec")
+    public Result addToCart(@RequestParam("productId") Long productId,
+                            @RequestParam(value = "selectedSpec", required = false) String selectedSpec,
+                            HttpServletRequest request) {
         String currentUsername = AuthContext.currentUsername(request);
         Long currentUserId = AuthContext.currentUserId(request);
         if (currentUsername == null || currentUsername.isEmpty()) {
@@ -61,11 +68,15 @@ public class CartController {
             Cart existCart = cartMapper.findExistItem(currentUsername, productId);
             if (existCart != null) {
                 cartMapper.updateQuantity(existCart.getId(), 1);
+                if (selectedSpec != null) {
+                    cartMapper.setSpec(currentUsername, productId, selectedSpec.trim());
+                }
             } else {
                 Cart cart = new Cart();
                 cart.setUsername(currentUsername);
                 cart.setProductId(productId);
                 cart.setQuantity(1);
+                cart.setSelectedSpec(selectedSpec != null ? selectedSpec.trim() : null);
                 cartMapper.insert(cart);
             }
             return Result.success("成功加入购物车");
@@ -132,5 +143,23 @@ public class CartController {
         }
         cartMapper.deleteByUsername(currentUsername);
         return Result.success("购物车已清空");
+    }
+
+    @PostMapping("/quantity")
+    public Result updateQuantity(@RequestParam("productId") Long productId,
+                                 @RequestParam("quantity") Integer quantity,
+                                 HttpServletRequest request) {
+        String currentUsername = AuthContext.currentUsername(request);
+        if (currentUsername == null || currentUsername.isEmpty()) {
+            return Result.error("未获取到登录状态");
+        }
+        if (quantity == null || quantity < 1 || quantity > 99) {
+            return Result.error("商品数量必须在 1~99");
+        }
+        int n = cartMapper.setQuantity(currentUsername, productId, quantity);
+        if (n <= 0) {
+            return Result.error("购物车中不存在该商品");
+        }
+        return Result.success("数量已更新");
     }
 }

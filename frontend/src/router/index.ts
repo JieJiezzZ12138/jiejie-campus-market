@@ -49,6 +49,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/product/:id',
+    name: 'ProductDetail',
+    component: () => import('../views/ProductDetail.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/admin',
     component: () => import('../views/Dashboard.vue'),
     meta: { requiresAuth: true, requiresAdmin: true }
@@ -72,6 +78,7 @@ router.beforeEach((to) => {
   }
 
   if (to.meta.requiresAdmin && role !== 'ADMIN') {
+    if (role === 'SUPER_ADMIN') return true
     ElMessage.warning('权限不足')
     return '/'
   }

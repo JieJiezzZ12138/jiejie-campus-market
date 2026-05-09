@@ -3,8 +3,8 @@
     <div class="login-box">
       <div class="login-logo">
         <el-icon size="45" color="#409EFF"><ShoppingCartFull /></el-icon>
-        <h1>校园二手交易平台</h1>
-        <p>Campus Second-hand Market System</p>
+        <h1>杰物 Jemall 电商平台</h1>
+        <p>Jemall E-commerce Platform</p>
       </div>
 
       <el-tabs v-model="activeTab" class="login-tabs">
@@ -20,7 +20,7 @@
 
             <div class="login-options">
               <el-checkbox v-model="loginForm.remember">记住登录状态</el-checkbox>
-              <el-link type="primary" underline="never" @click="ElMessage.info('请联系系统管理员 @JieJie 重置')">忘记密码？</el-link>
+              <el-link type="primary" underline="never" @click="openResetDialog">忘记密码？</el-link>
             </div>
 
             <el-button type="primary" class="submit-btn" :loading="loading" @click="handleLogin">安全登录</el-button>
@@ -38,8 +38,20 @@
             <el-form-item prop="phone">
               <el-input v-model="registerForm.phone" placeholder="手机号（必填）" size="large" />
             </el-form-item>
+            <el-form-item prop="email">
+              <el-input v-model="registerForm.email" placeholder="邮箱（必填）" size="large">
+                <template #append>
+                  <el-button :disabled="emailSending || emailCountdown > 0" @click="sendRegisterCode">
+                    {{ emailCountdown > 0 ? `${emailCountdown}s` : '发送验证码' }}
+                  </el-button>
+                </template>
+              </el-input>
+            </el-form-item>
+            <el-form-item prop="emailCode">
+              <el-input v-model="registerForm.emailCode" placeholder="邮箱验证码" size="large" />
+            </el-form-item>
             <el-form-item prop="campusAddress">
-              <el-input v-model="registerForm.campusAddress" placeholder="常用面交地址（可选）" size="large" />
+              <el-input v-model="registerForm.campusAddress" placeholder="常用收货地址（可选）" size="large" />
             </el-form-item>
             <el-form-item prop="password">
               <el-input v-model="registerForm.password" type="password" placeholder="密码（至少 6 位）" :prefix-icon="Lock" show-password size="large" />
@@ -53,10 +65,29 @@
       </el-tabs>
 
       <div class="login-footer">
-        <p class="copyright">© 2026 <strong>@JieJie</strong> · All Rights Reserved</p>
-        <p class="project-tag">校园二手交易平台 | 个人作品集项目</p>
+        <p class="copyright">© 2026 <strong>Jemall</strong> · All Rights Reserved</p>
+        <p class="project-tag">杰物电商平台 | Web 开发课程大作业</p>
       </div>
     </div>
+    <el-dialog v-model="resetVisible" title="找回密码" width="460px">
+      <el-form :model="resetForm">
+        <el-form-item label="邮箱" label-width="80">
+          <el-input v-model="resetForm.email">
+            <template #append>
+              <el-button :disabled="resetSending || resetCountdown > 0" @click="sendResetCode">
+                {{ resetCountdown > 0 ? `${resetCountdown}s` : '发送验证码' }}
+              </el-button>
+            </template>
+          </el-input>
+        </el-form-item>
+        <el-form-item label="验证码" label-width="80"><el-input v-model="resetForm.emailCode" /></el-form-item>
+        <el-form-item label="新密码" label-width="80"><el-input v-model="resetForm.newPassword" type="password" show-password /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="resetVisible=false">取消</el-button>
+        <el-button type="primary" :loading="resetSubmitting" @click="submitReset">重置密码</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -80,10 +111,19 @@ const registerForm = reactive({
   username: '',
   nickname: '',
   phone: '',
+  email: '',
+  emailCode: '',
   campusAddress: '',
   password: '',
   confirmPassword: ''
 })
+const resetVisible = ref(false)
+const resetForm = reactive({ email: '', emailCode: '', newPassword: '' })
+const emailSending = ref(false)
+const emailCountdown = ref(0)
+const resetSending = ref(false)
+const resetCountdown = ref(0)
+const resetSubmitting = ref(false)
 
 const validateConfirm = (rule, value, callback) => {
   if (value !== registerForm.password) {
@@ -104,6 +144,11 @@ const registerRules = {
     { required: true, message: '请输入手机号', trigger: 'blur' },
     { pattern: /^\\d{7,20}$/, message: '手机号格式不正确', trigger: 'blur' }
   ],
+  email: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
+    { pattern: /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/, message: '邮箱格式不正确', trigger: 'blur' }
+  ],
+  emailCode: [{ required: true, message: '请输入邮箱验证码', trigger: 'blur' }],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码至少 6 位', trigger: 'blur' }
@@ -115,7 +160,7 @@ const registerRules = {
 }
 
 onMounted(() => {
-  const savedUser = localStorage.getItem('jiejie_saved_user')
+  const savedUser = localStorage.getItem('jemall_saved_user') || localStorage.getItem('jiejie_saved_user')
   if (savedUser) {
     try {
       const { username, password } = JSON.parse(savedUser)
@@ -123,6 +168,7 @@ onMounted(() => {
       loginForm.password = password
       loginForm.remember = true
     } catch (e) {
+      localStorage.removeItem('jemall_saved_user')
       localStorage.removeItem('jiejie_saved_user')
     }
   }
@@ -151,11 +197,12 @@ const handleLogin = () => {
 
 const handleRememberMe = () => {
   if (loginForm.remember) {
-    localStorage.setItem('jiejie_saved_user', JSON.stringify({
+    localStorage.setItem('jemall_saved_user', JSON.stringify({
       username: loginForm.username,
       password: loginForm.password
     }))
   } else {
+    localStorage.removeItem('jemall_saved_user')
     localStorage.removeItem('jiejie_saved_user')
   }
 }
@@ -170,7 +217,7 @@ const persistSession = (token, userInfo) => {
     ElMessage.success(`欢迎回来，管理员 ${nickname}`)
     router.push('/admin')
   } else {
-    ElMessage.success(`登录成功，欢迎来到集市，${nickname}`)
+    ElMessage.success(`登录成功，欢迎来到杰物，${nickname}`)
     router.push('/')
   }
 }
@@ -185,6 +232,8 @@ const handleRegister = () => {
         password: registerForm.password,
         nickname: registerForm.nickname?.trim() || undefined,
         phone: registerForm.phone?.trim() || undefined,
+        email: registerForm.email?.trim() || undefined,
+        emailCode: registerForm.emailCode?.trim() || undefined,
         campusAddress: registerForm.campusAddress?.trim() || undefined
       })
       persistSession(res.token, res.userInfo)
@@ -194,6 +243,66 @@ const handleRegister = () => {
       registerLoading.value = false
     }
   })
+}
+
+const startCountdown = (targetRef) => {
+  targetRef.value = 60
+  const timer = setInterval(() => {
+    targetRef.value -= 1
+    if (targetRef.value <= 0) clearInterval(timer)
+  }, 1000)
+}
+
+const sendRegisterCode = async () => {
+  if (!registerForm.email?.trim()) return ElMessage.warning('请先输入邮箱')
+  emailSending.value = true
+  try {
+    await request.post('/auth/email/send-code', { email: registerForm.email.trim(), bizType: 'REGISTER' })
+    ElMessage.success('验证码已发送，请查看邮箱/后端日志')
+    startCountdown(emailCountdown)
+  } catch (e) {
+    console.error(e)
+  } finally {
+    emailSending.value = false
+  }
+}
+
+const openResetDialog = () => {
+  resetVisible.value = true
+}
+
+const sendResetCode = async () => {
+  if (!resetForm.email?.trim()) return ElMessage.warning('请先输入邮箱')
+  resetSending.value = true
+  try {
+    await request.post('/auth/email/send-code', { email: resetForm.email.trim(), bizType: 'RESET_PASSWORD' })
+    ElMessage.success('验证码已发送，请查看邮箱/后端日志')
+    startCountdown(resetCountdown)
+  } catch (e) {
+    console.error(e)
+  } finally {
+    resetSending.value = false
+  }
+}
+
+const submitReset = async () => {
+  if (!resetForm.email || !resetForm.emailCode || !resetForm.newPassword) {
+    return ElMessage.warning('请填写完整信息')
+  }
+  resetSubmitting.value = true
+  try {
+    await request.post('/auth/reset-password', {
+      email: resetForm.email.trim(),
+      emailCode: resetForm.emailCode.trim(),
+      newPassword: resetForm.newPassword
+    })
+    ElMessage.success('密码重置成功，请登录')
+    resetVisible.value = false
+  } catch (e) {
+    console.error(e)
+  } finally {
+    resetSubmitting.value = false
+  }
 }
 </script>
 

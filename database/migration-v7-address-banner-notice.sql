@@ -1,0 +1,37 @@
+-- 地址簿、轮播、公告
+-- mysql -uroot -p123456 my_system < database/migration-v7-address-banner-notice.sql
+
+USE my_system;
+
+CREATE TABLE IF NOT EXISTS user_address (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  receiver VARCHAR(64) NOT NULL,
+  phone VARCHAR(20) NOT NULL,
+  province VARCHAR(64) NOT NULL,
+  city VARCHAR(64) NOT NULL,
+  district VARCHAR(64) NOT NULL,
+  detail_address VARCHAR(255) NOT NULL,
+  is_default TINYINT(1) NOT NULL DEFAULT 0,
+  create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_user_default (user_id, is_default)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS system_notice (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  title VARCHAR(120) NOT NULL,
+  content VARCHAR(2000) NOT NULL,
+  status TINYINT(1) NOT NULL DEFAULT 1,
+  create_time DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS banner_item (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  title VARCHAR(120) NOT NULL,
+  subtitle VARCHAR(255) NULL,
+  image_url VARCHAR(500) NULL,
+  bg_color VARCHAR(32) NULL,
+  sort_no INT NOT NULL DEFAULT 100,
+  status TINYINT(1) NOT NULL DEFAULT 1,
+  create_time DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

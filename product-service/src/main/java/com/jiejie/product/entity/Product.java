@@ -27,4 +27,10 @@ public class Product {
     private String sellerName;
     private String sellerAvatar;
     private String sellerAddress;
+    private Integer salesCount;
+    private String specJson;
+    private Integer isSeckill;
+    private BigDecimal seckillPrice;
+    private Date seckillStartTime;
+    private Date seckillEndTime;
 }

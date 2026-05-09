@@ -24,6 +24,7 @@ import org.springframework.security.web.server.ServerAuthenticationEntryPoint;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.util.StringUtils;
+import org.springframework.security.config.Customizer;
 import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
@@ -42,6 +43,7 @@ public class SecurityConfig {
         authWebFilter.setAuthenticationFailureHandler(authenticationFailureHandler());
 
         http
+                .cors(Customizer.withDefaults())
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
@@ -51,7 +53,7 @@ public class SecurityConfig {
                         .pathMatchers("/auth/login", "/auth/register", "/auth/ping").permitAll()
                         .pathMatchers("/product/list", "/images/**").permitAll()
                         .pathMatchers("/auth/admin/**", "/user/admin/**", "/order/admin/**", "/product/admin/**")
-                        .hasRole("ADMIN")
+                        .hasAnyRole("ADMIN", "SUPER_ADMIN")
                         .anyExchange().authenticated()
                 )
                 .exceptionHandling(ex -> ex

@@ -32,12 +32,25 @@
         </el-form-item>
 
         <el-form-item label="昵称" required>
-          <el-input v-model="form.nickname" maxlength="32" show-word-limit placeholder="在集市里展示的名字" />
+          <el-input v-model="form.nickname" maxlength="32" show-word-limit placeholder="在杰物展示的昵称" />
         </el-form-item>
 
-        <el-form-item label="面交地址">
-          <el-input v-model="form.campusAddress" type="textarea" :rows="2" placeholder="例如：东区宿舍楼下 / 图书馆门口" />
+        <el-form-item label="收货地址">
+          <el-input v-model="form.campusAddress" type="textarea" :rows="2" placeholder="例如：辽宁省沈阳市浑南区 xx 路 xx 号" />
         </el-form-item>
+
+        <el-divider content-position="left">地址簿</el-divider>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;">
+          <div v-for="a in addressList" :key="a.id" style="border:1px solid #ebeef5;border-radius:8px;padding:8px;">
+            <div>{{ a.receiver }} {{ a.phone }} <el-tag size="small" v-if="Number(a.isDefault)===1">默认</el-tag></div>
+            <div style="font-size:12px;color:#606266;">{{ a.province }}{{ a.city }}{{ a.district }} {{ a.detailAddress }}</div>
+            <div style="margin-top:6px;">
+              <el-button size="small" @click="editAddress(a)">编辑</el-button>
+              <el-button size="small" type="danger" @click="removeAddress(a)">删除</el-button>
+            </div>
+          </div>
+        </div>
+        <el-button size="small" type="primary" plain @click="editAddress()">新增地址</el-button>
 
         <el-form-item label="手机号" required>
           <el-input v-model="form.phone" maxlength="20" placeholder="请输入手机号" />
@@ -48,6 +61,16 @@
         </el-form-item>
       </el-form>
     </el-card>
+    <el-dialog v-model="addressVisible" title="地址编辑" width="560px">
+      <el-form :model="addressForm" label-width="90px">
+        <el-form-item label="收货人"><el-input v-model="addressForm.receiver" /></el-form-item>
+        <el-form-item label="手机号"><el-input v-model="addressForm.phone" /></el-form-item>
+        <el-form-item label="省市区"><el-input v-model="addressForm.province" placeholder="省" style="width:30%;margin-right:1%;" /><el-input v-model="addressForm.city" placeholder="市" style="width:30%;margin-right:1%;" /><el-input v-model="addressForm.district" placeholder="区" style="width:38%;" /></el-form-item>
+        <el-form-item label="详细地址"><el-input v-model="addressForm.detailAddress" /></el-form-item>
+        <el-form-item label="默认地址"><el-switch v-model="addressForm.isDefault" :active-value="1" :inactive-value="0" /></el-form-item>
+      </el-form>
+      <template #footer><el-button @click="addressVisible=false">取消</el-button><el-button type="primary" @click="saveAddress">保存</el-button></template>
+    </el-dialog>
   </div>
 </template>
 
@@ -70,6 +93,9 @@ const form = reactive({
   campusAddress: '',
   phone: ''
 })
+const addressList = ref<any[]>([])
+const addressVisible = ref(false)
+const addressForm = ref<any>({ id: null, receiver: '', phone: '', province: '', city: '', district: '', detailAddress: '', isDefault: 0 })
 
 const localToken = localStorage.getItem('token') || ''
 const uploadHeaders = localToken ? { Authorization: `Bearer ${localToken}` } : {}
@@ -148,7 +174,32 @@ const handleSave = async () => {
 
 onMounted(() => {
   loadProfile()
+  loadAddressList()
 })
+
+const loadAddressList = async () => {
+  try {
+    addressList.value = await request.get('/user/address/list') || []
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const editAddress = (row?: any) => {
+  addressForm.value = row ? { ...row } : { id: null, receiver: '', phone: '', province: '', city: '', district: '', detailAddress: '', isDefault: 0 }
+  addressVisible.value = true
+}
+
+const saveAddress = async () => {
+  await request.post('/user/address/save', addressForm.value)
+  addressVisible.value = false
+  loadAddressList()
+}
+
+const removeAddress = async (row) => {
+  await request.post(`/user/address/delete?id=${row.id}`)
+  loadAddressList()
+}
 </script>
 
 <style scoped>

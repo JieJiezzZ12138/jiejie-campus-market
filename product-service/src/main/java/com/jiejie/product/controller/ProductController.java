@@ -3,7 +3,10 @@ package com.jiejie.product.controller;
 import com.jiejie.common.Result;
 import com.jiejie.common.utils.JwtUtils;
 import com.jiejie.product.entity.Product;
+import com.jiejie.product.entity.ProductReview;
+import com.jiejie.product.mapper.ProductFavoriteMapper;
 import com.jiejie.product.mapper.ProductMapper;
+import com.jiejie.product.mapper.ProductReviewMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +18,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.List;
 import java.util.UUID;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/product")
@@ -22,6 +26,10 @@ public class ProductController {
 
     @Autowired
     private ProductMapper productMapper;
+    @Autowired
+    private ProductFavoriteMapper productFavoriteMapper;
+    @Autowired
+    private ProductReviewMapper productReviewMapper;
     @Value("${file.upload-path}")
     private String uploadPath;
 
@@ -30,8 +38,16 @@ public class ProductController {
      */
     @GetMapping("/list")
     public Result list(@RequestParam(value = "category", required = false) String category,
-                       @RequestParam(value = "keyword", required = false) String keyword) {
-        return Result.success(productMapper.getActiveProducts(category, keyword));
+                       @RequestParam(value = "keyword", required = false) String keyword,
+                       @RequestParam(value = "sortBy", required = false) String sortBy) {
+        return Result.success(productMapper.getActiveProducts(category, keyword, sortBy));
+    }
+
+    @GetMapping("/detail")
+    public Result detail(@RequestParam("id") Long id) {
+        Product p = productMapper.selectDetailById(id);
+        if (p == null) return Result.error("商品不存在");
+        return Result.success(p);
     }
 
     /**
@@ -148,5 +164,57 @@ public class ProductController {
     public Result updateStatus(@RequestParam(value = "id") Long id, @RequestParam(value = "status") Integer status) {
         productMapper.updateStatus(id, status);
         return Result.success("操作成功");
+    }
+
+    @PostMapping("/favorite/toggle")
+    public Result toggleFavorite(HttpServletRequest request, @RequestParam("productId") Long productId) {
+        Object userIdAttr = request.getAttribute("currentUserId");
+        if (userIdAttr == null) {
+            return Result.error("请先登录");
+        }
+        Long userId = Long.parseLong(userIdAttr.toString());
+        int exists = productFavoriteMapper.exists(userId, productId);
+        if (exists > 0) {
+            productFavoriteMapper.delete(userId, productId);
+            return Result.success(Map.of("favorited", false));
+        }
+        productFavoriteMapper.insert(userId, productId);
+        return Result.success(Map.of("favorited", true));
+    }
+
+    @GetMapping("/favorite/list")
+    public Result favoriteList(HttpServletRequest request) {
+        Object userIdAttr = request.getAttribute("currentUserId");
+        if (userIdAttr == null) {
+            return Result.error("请先登录");
+        }
+        Long userId = Long.parseLong(userIdAttr.toString());
+        return Result.success(productFavoriteMapper.listProductIds(userId));
+    }
+
+    @PostMapping("/review/add")
+    public Result addReview(HttpServletRequest request, @RequestBody ProductReview review) {
+        Object userIdAttr = request.getAttribute("currentUserId");
+        if (userIdAttr == null) {
+            return Result.error("请先登录");
+        }
+        if (review.getProductId() == null) {
+            return Result.error("缺少商品ID");
+        }
+        if (review.getRating() == null || review.getRating() < 1 || review.getRating() > 5) {
+            return Result.error("评分范围应为1-5");
+        }
+        if (review.getContent() == null || review.getContent().trim().isEmpty()) {
+            return Result.error("评价内容不能为空");
+        }
+        review.setUserId(Long.parseLong(userIdAttr.toString()));
+        review.setContent(review.getContent().trim());
+        productReviewMapper.insert(review);
+        return Result.success("评价成功");
+    }
+
+    @GetMapping("/review/list")
+    public Result reviewList(@RequestParam("productId") Long productId) {
+        return Result.success(productReviewMapper.listByProductId(productId));
     }
 }
