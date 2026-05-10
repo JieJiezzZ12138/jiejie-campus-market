@@ -2,15 +2,16 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr: 127.0.0.1:8848
+        server-addr: ${NACOS_HOST:nacos}:${NACOS_PORT:8848}
+        namespace: ${NACOS_NAMESPACE:}
     gateway:
       httpclient:
         connect-timeout: 3000
         response-timeout: 10s
   data:
     redis:
-      host: 127.0.0.1
-      port: 6379
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
       database: 0
       lettuce:

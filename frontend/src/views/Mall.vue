@@ -8,9 +8,11 @@
         </div>
 
         <div class="search-box">
-          <el-input v-model="searchQuery" placeholder="搜索你想要的商品..." class="search-input" clearable @keyup.enter="handleSearch" @clear="handleSearch">
-            <template #append><el-button :icon="Search" @click="handleSearch" /></template>
-          </el-input>
+          <div class="search-row">
+            <el-input v-model="searchQuery" placeholder="搜索你想要的商品..." class="search-input" clearable @keyup.enter="handleSearch" @clear="handleSearch" />
+            <el-segmented v-model="searchMode" :options="searchModeOptions" size="small" @change="handleSearch" />
+            <el-button type="primary" :icon="Search" :loading="productLoading" @click="handleSearch">搜索</el-button>
+          </div>
           <div class="hot-keywords">
             <span class="hot-label">热门搜索：</span>
             <el-tag v-for="k in hotKeywords" :key="k" size="small" class="hot-tag" @click="quickSearch(k)">{{ k }}</el-tag>
@@ -253,10 +255,16 @@ const route = useRoute()
 const userInfo = ref(JSON.parse(localStorage.getItem('userInfo') || '{}'))
 
 const searchQuery = ref('')
+const searchMode = ref('fuzzy')
+const searchModeOptions = [
+  { label: '模糊', value: 'fuzzy' },
+  { label: '精准', value: 'exact' }
+]
 const hotKeywords = ref(['手机', '耳机', '笔记本', '图书', '运动鞋'])
 const activeCategory = ref('')
 const sortBy = ref('new_desc')
 const productList = ref<any[]>([])
+const productLoading = ref(false)
 const pageNo = ref(1)
 const pageSize = ref(8)
 const pagedProductList = computed(() => productList.value.slice((pageNo.value - 1) * pageSize.value, (pageNo.value - 1) * pageSize.value + pageSize.value))
@@ -320,7 +328,9 @@ const pickFirstImage = (image: any, imageUrl: any) => {
   return list[0] || ''
 }
 const getImageUrl = (url: string) => resolveImageUrl(url)
-const handleSearch = () => fetchProducts()
+const handleSearch = async () => {
+  await fetchProducts()
+}
 const quickSearch = (k: string) => {
   searchQuery.value = k
   handleSearch()
@@ -337,11 +347,16 @@ const refreshFavoriteProducts = () => {
 }
 
 const fetchProducts = async () => {
-  const res = await request.get('/product/list', { params: { keyword: searchQuery.value, category: activeCategory.value, sortBy: sortBy.value } })
-  const colors = ['#ffb8b8', '#b8e9ff', '#b8ffc9', '#ffdfb8', '#e1b8ff', '#b8fff4']
-  productList.value = (res || []).map((x: any, i: number) => ({ ...x, bgColor: colors[i % colors.length] }))
-  pageNo.value = 1
-  refreshFavoriteProducts()
+  productLoading.value = true
+  try {
+    const res = await request.get('/product/list', { params: { keyword: searchQuery.value.trim(), searchMode: searchMode.value, category: activeCategory.value, sortBy: sortBy.value } })
+    const colors = ['#ffb8b8', '#b8e9ff', '#b8ffc9', '#ffdfb8', '#e1b8ff', '#b8fff4']
+    productList.value = (res || []).map((x: any, i: number) => ({ ...x, bgColor: colors[i % colors.length] }))
+    pageNo.value = 1
+    refreshFavoriteProducts()
+  } finally {
+    productLoading.value = false
+  }
 }
 const fetchFavorites = async () => {
   try {
@@ -495,7 +510,9 @@ const handleLogout = () => {
 .header-content { max-width: 1200px; margin: 0 auto; height: 64px; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; }
 .logo { display: flex; align-items: center; gap: 10px; cursor: pointer; }
 .logo-text { font-size: 22px; font-weight: 700; font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif; color: var(--brand); }
-.search-box { width: 420px; }
+.search-box { width: 560px; }
+.search-row { display: flex; align-items: center; gap: 8px; }
+.search-input { flex: 1; min-width: 220px; }
 .hot-keywords { margin-top: 6px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .hot-label { font-size: 12px; color: #64748b; }
 .hot-tag { cursor: pointer; }

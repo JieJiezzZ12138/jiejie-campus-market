@@ -31,6 +31,7 @@ public class Product implements Serializable {
     private String sellerAvatar;
     private String sellerAddress;
     private Integer salesCount;
+    private Integer searchScore;
     private String specJson;
     private Integer isSeckill;
     private BigDecimal seckillPrice;

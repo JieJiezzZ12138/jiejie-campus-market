@@ -1,5 +1,22 @@
-FROM eclipse-temurin:17-jre-alpine
+ARG MAVEN_IMAGE=maven:3.9-eclipse-temurin-17
+ARG JRE_IMAGE=eclipse-temurin:17-jre-alpine
+FROM ${MAVEN_IMAGE} AS build
+WORKDIR /workspace
+COPY docker/maven/settings.xml /root/.m2/settings.xml
+COPY pom.xml ./
+COPY common ./common
+COPY auth-service ./auth-service
+COPY gateway-service ./gateway-service
+COPY product-service ./product-service
+COPY order-service ./order-service
+RUN mvn -pl product-service -am -DskipTests package
+
+ARG JRE_IMAGE
+FROM ${JRE_IMAGE}
 WORKDIR /app
-COPY product-service/target/product-service-*-exec.jar app.jar
+RUN mkdir -p /app/pictures
+COPY --from=build /workspace/product-service/target/product-service-1.0.0-exec.jar app.jar
 EXPOSE 8082
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=5 \
+  CMD nc -z 127.0.0.1 8082 || exit 1
 ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -1,120 +1,203 @@
-version: "3.9"
+x-service-env: &service-env
+  SPRING_PROFILES_ACTIVE: prod
+  DB_HOST: mysql
+  DB_PORT: 3306
+  DB_NAME: ${MYSQL_DATABASE:-my_system}
+  DB_USERNAME: root
+  DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+  NACOS_HOST: nacos
+  NACOS_PORT: 8848
+  NACOS_NAMESPACE: ${NACOS_NAMESPACE:-}
 
 services:
   mysql:
     image: mysql:8.0
     container_name: jemall-mysql
-    restart: always
+    restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: 123456
-      MYSQL_DATABASE: my_system
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-my_system}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
     ports:
-      - "3306:3306"
+      - "${MYSQL_PORT:-3306}:3306"
     volumes:
-      - ./_docker/mysql-data:/var/lib/mysql
+      - mysql-data:/var/lib/mysql
+      - ./database/reset-seed-ecommerce.sql:/docker-entrypoint-initdb.d/01-reset-seed-ecommerce.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
 
   redis:
     image: redis:7-alpine
     container_name: jemall-redis
-    restart: always
+    restart: unless-stopped
+    command: >
+      sh -c 'if [ -n "$$REDIS_PASSWORD" ]; then
+      redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD";
+      else redis-server --appendonly yes; fi'
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "if [ -n \"$${REDIS_PASSWORD}\" ]; then redis-cli -a \"$${REDIS_PASSWORD}\" ping; else redis-cli ping; fi"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
 
   nacos:
-    image: nacos/nacos-server:v2.3.2
+    image: nacos/nacos-server:v2.4.0
     container_name: jemall-nacos
-    restart: always
+    restart: unless-stopped
     environment:
       MODE: standalone
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+      JVM_XMN: 128m
+      NACOS_AUTH_ENABLE: "false"
     ports:
-      - "8848:8848"
+      - "${NACOS_PORT:-8848}:8848"
+      - "9848:9848"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8848/nacos/actuator/health | grep -q UP"]
+      interval: 15s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
 
   auth-service:
+    platform: ${APP_PLATFORM:-linux/amd64}
     build:
       context: .
       dockerfile: Dockerfile.auth-service
+      args:
+        MAVEN_IMAGE: ${MAVEN_IMAGE:-maven:3.9-eclipse-temurin-17}
+        JRE_IMAGE: ${JRE_IMAGE:-eclipse-temurin:17-jre-alpine}
+    image: jemall/auth-service:1.0.0
     container_name: jemall-auth
-    restart: always
+    restart: unless-stopped
     depends_on:
-      - mysql
-      - redis
-      - nacos
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
     environment:
-      SPRING_PROFILES_ACTIVE: prod
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_USERNAME: root
-      DB_PASSWORD: 123456
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      NACOS_HOST: nacos
-      NACOS_NAMESPACE:
+      <<: *service-env
     ports:
-      - "8081:8081"
+      - "${AUTH_PORT:-8081}:8081"
 
   product-service:
+    platform: ${APP_PLATFORM:-linux/amd64}
     build:
       context: .
       dockerfile: Dockerfile.product-service
+      args:
+        MAVEN_IMAGE: ${MAVEN_IMAGE:-maven:3.9-eclipse-temurin-17}
+        JRE_IMAGE: ${JRE_IMAGE:-eclipse-temurin:17-jre-alpine}
+    image: jemall/product-service:1.0.0
     container_name: jemall-product
-    restart: always
+    restart: unless-stopped
     depends_on:
-      - mysql
-      - redis
-      - nacos
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
     environment:
-      SPRING_PROFILES_ACTIVE: prod
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_USERNAME: root
-      DB_PASSWORD: 123456
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      NACOS_HOST: nacos
-      NACOS_NAMESPACE:
+      <<: *service-env
+      FILE_UPLOAD_PATH: /app/pictures/
     ports:
-      - "8082:8082"
+      - "${PRODUCT_PORT:-8082}:8082"
+    volumes:
+      - product-images:/app/pictures
 
   order-service:
+    platform: ${APP_PLATFORM:-linux/amd64}
     build:
       context: .
       dockerfile: Dockerfile.order-service
+      args:
+        MAVEN_IMAGE: ${MAVEN_IMAGE:-maven:3.9-eclipse-temurin-17}
+        JRE_IMAGE: ${JRE_IMAGE:-eclipse-temurin:17-jre-alpine}
+    image: jemall/order-service:1.0.0
     container_name: jemall-order
-    restart: always
+    restart: unless-stopped
     depends_on:
-      - mysql
-      - redis
-      - nacos
-      - product-service
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
     environment:
-      SPRING_PROFILES_ACTIVE: prod
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_USERNAME: root
-      DB_PASSWORD: 123456
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      NACOS_HOST: nacos
-      NACOS_NAMESPACE:
+      <<: *service-env
     ports:
-      - "8083:8083"
+      - "${ORDER_PORT:-8083}:8083"
 
   gateway-service:
+    platform: ${APP_PLATFORM:-linux/amd64}
     build:
       context: .
       dockerfile: Dockerfile.gateway-service
+      args:
+        MAVEN_IMAGE: ${MAVEN_IMAGE:-maven:3.9-eclipse-temurin-17}
+        JRE_IMAGE: ${JRE_IMAGE:-eclipse-temurin:17-jre-alpine}
+    image: jemall/gateway-service:1.0.0
     container_name: jemall-gateway
-    restart: always
+    restart: unless-stopped
     depends_on:
-      - nacos
-      - auth-service
-      - product-service
-      - order-service
+      nacos:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
     environment:
-      SPRING_PROFILES_ACTIVE: prod
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      NACOS_HOST: nacos
-      NACOS_NAMESPACE:
+      <<: *service-env
     ports:
-      - "8080:8080"
+      - "${GATEWAY_PORT:-8080}:8080"
+
+  frontend:
+    platform: ${APP_PLATFORM:-linux/amd64}
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:22-alpine}
+        NGINX_IMAGE: ${NGINX_IMAGE:-nginx:1.27-alpine}
+        VITE_APP_BASE_API: ""
+        VITE_APP_IMAGE_BASE_URL: ""
+    image: jemall/frontend:1.0.0
+    container_name: jemall-frontend
+    restart: unless-stopped
+    depends_on:
+      gateway-service:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+
+volumes:
+  mysql-data:
+  redis-data:
+  product-images:

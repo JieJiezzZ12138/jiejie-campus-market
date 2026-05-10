@@ -25,6 +25,9 @@ import java.util.List;
 import java.util.UUID;
 import java.util.Map;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/product")
@@ -46,17 +49,54 @@ public class ProductController {
      * 1. 查询商品列表
      */
     @GetMapping("/list")
-    @Cacheable(cacheNames = "product:list", key = "T(java.util.Objects).toString(#category, '') + ':' + T(java.util.Objects).toString(#keyword, '') + ':' + T(java.util.Objects).toString(#sortBy, '')")
+    @Cacheable(cacheNames = "product:list",
+            key = "T(java.util.Objects).toString(#p0, '') + ':' + T(java.util.Objects).toString(#p3, '')",
+            condition = "#p1 == null || #p1.isBlank()")
     public Result list(@RequestParam(value = "category", required = false) String category,
                        @RequestParam(value = "keyword", required = false) String keyword,
+                       @RequestParam(value = "searchMode", defaultValue = "fuzzy") String searchMode,
                        @RequestParam(value = "sortBy", required = false) String sortBy) {
+        String normalizedKeyword = normalizeKeyword(keyword);
+        String normalizedMode = "exact".equalsIgnoreCase(searchMode) ? "exact" : "fuzzy";
+        String keywordLikePattern = normalizedKeyword == null ? null : "%" + normalizedKeyword + "%";
+        List<String> keywordPatterns = buildKeywordPatterns(normalizedKeyword);
         try {
-            return Result.success(productMapper.getActiveProducts(category, keyword, sortBy));
+            return Result.success(productMapper.getActiveProducts(category, normalizedKeyword, keywordLikePattern, keywordPatterns, normalizedMode, sortBy));
         } catch (Exception ex) {
             ex.printStackTrace();
             // 兜底：当订单统计相关 SQL 因历史库结构差异失败时，降级为基础商品列表
-            return Result.success(productMapper.getActiveProductsWithoutOrderStats(category, keyword, sortBy));
+            return Result.success(productMapper.getActiveProductsWithoutOrderStats(category, normalizedKeyword, keywordLikePattern, keywordPatterns, normalizedMode, sortBy));
         }
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null) return null;
+        String normalized = keyword.trim().replaceAll("\\s+", " ");
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private List<String> buildKeywordPatterns(String keyword) {
+        if (keyword == null || keyword.isBlank()) return List.of();
+        Set<String> terms = new LinkedHashSet<>();
+        terms.add(keyword);
+        String compact = keyword.replaceAll("\\s+", "");
+        switch (compact) {
+            case "手机" -> terms.addAll(List.of("小米", "iPhone", "华为", "数码电子", "影像旗舰"));
+            case "电脑", "笔记本" -> terms.addAll(List.of("MateBook", "笔记本", "轻薄本", "数码电子"));
+            case "耳机" -> terms.addAll(List.of("耳机", "蓝牙", "数码电子"));
+            case "图书", "书" -> terms.addAll(List.of("图书文创", "人类简史", "纸张", "印刷"));
+            case "运动鞋", "鞋" -> terms.addAll(List.of("跑鞋", "Nike", "运动户外", "服饰鞋帽"));
+            default -> { }
+        }
+        return terms.stream().map(this::buildFuzzyPattern).toList();
+    }
+
+    private String buildFuzzyPattern(String term) {
+        String compact = term.chars()
+                .filter(ch -> !Character.isWhitespace(ch))
+                .mapToObj(ch -> String.valueOf((char) ch))
+                .collect(Collectors.joining("%"));
+        return "%" + compact + "%";
     }
 
     @GetMapping("/detail")

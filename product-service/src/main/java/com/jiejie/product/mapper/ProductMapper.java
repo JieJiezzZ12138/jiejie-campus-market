@@ -16,19 +16,56 @@ public interface ProductMapper {
             "u.nickname as sellerName, u.avatar as sellerAvatar, " +
             "u.campus_address as sellerAddress, " +
             "IFNULL((SELECT SUM(o.buy_count) FROM orders o WHERE o.product_id = p.id AND o.order_status IN (1,2,3)), 0) as salesCount " +
+            "<if test='keyword != null and keyword.toString() != \"\"'>, " +
+            "((CASE WHEN p.name = #{keyword} THEN 1000 ELSE 0 END) + " +
+            "(CASE WHEN p.name LIKE #{keywordLikePattern} THEN 800 ELSE 0 END) + " +
+            "(CASE WHEN p.category = #{keyword} THEN 650 ELSE 0 END) + " +
+            "(CASE WHEN p.category LIKE #{keywordLikePattern} THEN 520 ELSE 0 END) + " +
+            "(CASE WHEN p.description LIKE #{keywordLikePattern} THEN 360 ELSE 0 END) + " +
+            "(CASE WHEN u.nickname LIKE #{keywordLikePattern} THEN 280 ELSE 0 END) + " +
+            "(CASE WHEN p.spec_json LIKE #{keywordLikePattern} THEN 240 ELSE 0 END) " +
+            "<if test='searchMode != \"exact\"'> " +
+            "<foreach collection='keywordPatterns' item='pattern'> + " +
+            "(CASE WHEN p.name LIKE #{pattern} THEN 180 ELSE 0 END) + " +
+            "(CASE WHEN p.description LIKE #{pattern} THEN 90 ELSE 0 END) + " +
+            "(CASE WHEN p.category LIKE #{pattern} THEN 70 ELSE 0 END) + " +
+            "(CASE WHEN u.nickname LIKE #{pattern} THEN 50 ELSE 0 END) + " +
+            "(CASE WHEN p.spec_json LIKE #{pattern} THEN 45 ELSE 0 END)" +
+            "</foreach>" +
+            "</if>) as searchScore " +
+            "</if> " +
+            "<if test='keyword == null or keyword.toString() == \"\"'>, 0 as searchScore </if> " +
             "FROM product p " +
             "LEFT JOIN sys_user u ON p.seller_id = u.id " +
             "WHERE p.audit_status = 1 AND p.publish_status = 1 AND p.stock > 0 " +
             "<if test='category != null and category.toString() != \"\"'> AND p.category = #{category} </if> " +
-            "<if test='keyword != null and keyword.toString() != \"\"'> AND (p.name LIKE CONCAT('%',#{keyword},'%') OR p.description LIKE CONCAT('%',#{keyword},'%')) </if> " +
+            "<if test='keyword != null and keyword.toString() != \"\"'> " +
             "<choose>" +
+            "<when test='searchMode == \"exact\"'> AND (p.name LIKE #{keywordLikePattern} OR p.description LIKE #{keywordLikePattern} OR p.category LIKE #{keywordLikePattern} OR u.nickname LIKE #{keywordLikePattern} OR p.spec_json LIKE #{keywordLikePattern}) </when>" +
+            "<otherwise> AND (" +
+            "<foreach collection='keywordPatterns' item='pattern' separator=' OR '>" +
+            "p.name LIKE #{pattern} OR p.description LIKE #{pattern} OR p.category LIKE #{pattern} OR u.nickname LIKE #{pattern} OR p.spec_json LIKE #{pattern}" +
+            "</foreach>" +
+            ") </otherwise>" +
+            "</choose>" +
+            "</if> " +
+            "<choose>" +
+            "<when test='keyword != null and keyword.toString() != \"\" and sortBy == \"price_asc\"'> ORDER BY searchScore DESC, p.price ASC, p.create_time DESC </when>" +
+            "<when test='keyword != null and keyword.toString() != \"\" and sortBy == \"price_desc\"'> ORDER BY searchScore DESC, p.price DESC, p.create_time DESC </when>" +
+            "<when test='keyword != null and keyword.toString() != \"\" and sortBy == \"sales_desc\"'> ORDER BY searchScore DESC, salesCount DESC, p.create_time DESC </when>" +
+            "<when test='keyword != null and keyword.toString() != \"\"'> ORDER BY searchScore DESC, p.create_time DESC </when>" +
             "<when test='sortBy == \"price_asc\"'> ORDER BY p.price ASC, p.create_time DESC </when>" +
             "<when test='sortBy == \"price_desc\"'> ORDER BY p.price DESC, p.create_time DESC </when>" +
             "<when test='sortBy == \"sales_desc\"'> ORDER BY salesCount DESC, p.create_time DESC </when>" +
             "<otherwise> ORDER BY p.create_time DESC </otherwise>" +
             "</choose>" +
             "</script>")
-    List<Product> getActiveProducts(@Param("category") String category, @Param("keyword") String keyword, @Param("sortBy") String sortBy);
+    List<Product> getActiveProducts(@Param("category") String category,
+                                    @Param("keyword") String keyword,
+                                    @Param("keywordLikePattern") String keywordLikePattern,
+                                    @Param("keywordPatterns") List<String> keywordPatterns,
+                                    @Param("searchMode") String searchMode,
+                                    @Param("sortBy") String sortBy);
 
     @Select("<script>" +
             "SELECT p.id, p.name, p.description, p.category, p.price, p.original_price as originalPrice, " +
@@ -37,18 +74,54 @@ public interface ProductMapper {
             "p.audit_status as auditStatus, p.publish_status as publishStatus, p.create_time, " +
             "u.nickname as sellerName, u.avatar as sellerAvatar, u.campus_address as sellerAddress, " +
             "0 as salesCount " +
+            "<if test='keyword != null and keyword.toString() != \"\"'>, " +
+            "((CASE WHEN p.name = #{keyword} THEN 1000 ELSE 0 END) + " +
+            "(CASE WHEN p.name LIKE #{keywordLikePattern} THEN 800 ELSE 0 END) + " +
+            "(CASE WHEN p.category = #{keyword} THEN 650 ELSE 0 END) + " +
+            "(CASE WHEN p.category LIKE #{keywordLikePattern} THEN 520 ELSE 0 END) + " +
+            "(CASE WHEN p.description LIKE #{keywordLikePattern} THEN 360 ELSE 0 END) + " +
+            "(CASE WHEN u.nickname LIKE #{keywordLikePattern} THEN 280 ELSE 0 END) + " +
+            "(CASE WHEN p.spec_json LIKE #{keywordLikePattern} THEN 240 ELSE 0 END) " +
+            "<if test='searchMode != \"exact\"'> " +
+            "<foreach collection='keywordPatterns' item='pattern'> + " +
+            "(CASE WHEN p.name LIKE #{pattern} THEN 180 ELSE 0 END) + " +
+            "(CASE WHEN p.description LIKE #{pattern} THEN 90 ELSE 0 END) + " +
+            "(CASE WHEN p.category LIKE #{pattern} THEN 70 ELSE 0 END) + " +
+            "(CASE WHEN u.nickname LIKE #{pattern} THEN 50 ELSE 0 END) + " +
+            "(CASE WHEN p.spec_json LIKE #{pattern} THEN 45 ELSE 0 END)" +
+            "</foreach>" +
+            "</if>) as searchScore " +
+            "</if> " +
+            "<if test='keyword == null or keyword.toString() == \"\"'>, 0 as searchScore </if> " +
             "FROM product p " +
             "LEFT JOIN sys_user u ON p.seller_id = u.id " +
             "WHERE p.audit_status = 1 AND p.publish_status = 1 AND p.stock > 0 " +
             "<if test='category != null and category.toString() != \"\"'> AND p.category = #{category} </if> " +
-            "<if test='keyword != null and keyword.toString() != \"\"'> AND (p.name LIKE CONCAT('%',#{keyword},'%') OR p.description LIKE CONCAT('%',#{keyword},'%')) </if> " +
+            "<if test='keyword != null and keyword.toString() != \"\"'> " +
             "<choose>" +
+            "<when test='searchMode == \"exact\"'> AND (p.name LIKE #{keywordLikePattern} OR p.description LIKE #{keywordLikePattern} OR p.category LIKE #{keywordLikePattern} OR u.nickname LIKE #{keywordLikePattern} OR p.spec_json LIKE #{keywordLikePattern}) </when>" +
+            "<otherwise> AND (" +
+            "<foreach collection='keywordPatterns' item='pattern' separator=' OR '>" +
+            "p.name LIKE #{pattern} OR p.description LIKE #{pattern} OR p.category LIKE #{pattern} OR u.nickname LIKE #{pattern} OR p.spec_json LIKE #{pattern}" +
+            "</foreach>" +
+            ") </otherwise>" +
+            "</choose>" +
+            "</if> " +
+            "<choose>" +
+            "<when test='keyword != null and keyword.toString() != \"\" and sortBy == \"price_asc\"'> ORDER BY searchScore DESC, p.price ASC, p.create_time DESC </when>" +
+            "<when test='keyword != null and keyword.toString() != \"\" and sortBy == \"price_desc\"'> ORDER BY searchScore DESC, p.price DESC, p.create_time DESC </when>" +
+            "<when test='keyword != null and keyword.toString() != \"\"'> ORDER BY searchScore DESC, p.create_time DESC </when>" +
             "<when test='sortBy == \"price_asc\"'> ORDER BY p.price ASC, p.create_time DESC </when>" +
             "<when test='sortBy == \"price_desc\"'> ORDER BY p.price DESC, p.create_time DESC </when>" +
             "<otherwise> ORDER BY p.create_time DESC </otherwise>" +
             "</choose>" +
             "</script>")
-    List<Product> getActiveProductsWithoutOrderStats(@Param("category") String category, @Param("keyword") String keyword, @Param("sortBy") String sortBy);
+    List<Product> getActiveProductsWithoutOrderStats(@Param("category") String category,
+                                                     @Param("keyword") String keyword,
+                                                     @Param("keywordLikePattern") String keywordLikePattern,
+                                                     @Param("keywordPatterns") List<String> keywordPatterns,
+                                                     @Param("searchMode") String searchMode,
+                                                     @Param("sortBy") String sortBy);
 
     @Select("SELECT id, name, icon, sort_no as sortNo, status, create_time as createTime FROM product_category WHERE status=1 ORDER BY sort_no ASC, id ASC")
     List<ProductCategory> listOnlineCategories();
