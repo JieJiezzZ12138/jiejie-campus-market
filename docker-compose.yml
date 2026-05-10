@@ -69,7 +69,6 @@ services:
       NACOS_AUTH_ENABLE: "false"
     ports:
       - "${NACOS_PORT:-8848}:8848"
-      - "9848:9848"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8848/nacos/actuator/health | grep -q UP"]
       interval: 15s
