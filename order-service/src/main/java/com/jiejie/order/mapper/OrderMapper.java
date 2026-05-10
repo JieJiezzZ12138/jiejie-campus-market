@@ -11,8 +11,8 @@ public interface OrderMapper {
      * 1. 创建订单
      * 增加了对 pay_time 的处理（下单时为 null）
      */
-    @Insert("INSERT INTO orders (order_no, buyer_id, product_id, buy_count, selected_spec, coupon_id, coupon_title, discount_amount, total_amount, order_status, create_time) " +
-            "VALUES (#{orderNo}, #{buyerId}, #{productId}, #{buyCount}, #{selectedSpec}, #{couponId}, #{couponTitle}, #{discountAmount}, #{totalAmount}, #{orderStatus}, NOW())")
+    @Insert("INSERT INTO orders (order_no, buyer_id, product_id, buy_count, selected_spec, address_id, receiver, receiver_phone, receiver_address, coupon_id, coupon_title, discount_amount, total_amount, order_status, create_time) " +
+            "VALUES (#{orderNo}, #{buyerId}, #{productId}, #{buyCount}, #{selectedSpec}, #{addressId}, #{receiver}, #{receiverPhone}, #{receiverAddress}, #{couponId}, #{couponTitle}, #{discountAmount}, #{totalAmount}, #{orderStatus}, NOW())")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     void createOrder(Order order);
 
@@ -21,7 +21,7 @@ public interface OrderMapper {
      * 关联 product 表，这样前端列表能显示“商品名字”，非常重要！
      */
     @Select("SELECT o.*, p.name as productName, p.image as productImage, p.seller_id as sellerId, " +
-            "bu.campus_address as buyerAddress, su.campus_address as sellerAddress, " +
+            "COALESCE(o.receiver_address, bu.campus_address) as buyerAddress, su.campus_address as sellerAddress, " +
             "bu.nickname as buyerNickname, bu.username as buyerUsername, bu.phone as buyerPhone, " +
             "su.nickname as sellerNickname, su.username as sellerUsername, su.phone as sellerPhone " +
             "FROM orders o " +
@@ -33,7 +33,7 @@ public interface OrderMapper {
     List<Order> findByUserId(@Param("userId") Long userId);
 
     @Select("SELECT o.*, p.name as productName, p.image as productImage, p.seller_id as sellerId, " +
-            "bu.campus_address as buyerAddress, su.campus_address as sellerAddress, " +
+            "COALESCE(o.receiver_address, bu.campus_address) as buyerAddress, su.campus_address as sellerAddress, " +
             "bu.nickname as buyerNickname, bu.username as buyerUsername, bu.phone as buyerPhone, " +
             "su.nickname as sellerNickname, su.username as sellerUsername, su.phone as sellerPhone " +
             "FROM orders o " +
@@ -45,7 +45,7 @@ public interface OrderMapper {
     List<Order> findBySellerId(@Param("sellerId") Long sellerId);
 
     @Select("SELECT o.*, p.name as productName, p.image as productImage, p.seller_id as sellerId, " +
-            "bu.campus_address as buyerAddress, su.campus_address as sellerAddress, " +
+            "COALESCE(o.receiver_address, bu.campus_address) as buyerAddress, su.campus_address as sellerAddress, " +
             "bu.nickname as buyerNickname, bu.username as buyerUsername, bu.phone as buyerPhone, " +
             "su.nickname as sellerNickname, su.username as sellerUsername, su.phone as sellerPhone " +
             "FROM orders o " +
@@ -80,7 +80,7 @@ public interface OrderMapper {
 
     /** 同一商品、买家最近一笔订单（用于收件箱/会话补全 orderId，合并历史消息） */
     @Select("SELECT o.*, p.name as productName, p.image as productImage, p.seller_id as sellerId, " +
-            "bu.campus_address as buyerAddress, su.campus_address as sellerAddress, " +
+            "COALESCE(o.receiver_address, bu.campus_address) as buyerAddress, su.campus_address as sellerAddress, " +
             "bu.nickname as buyerNickname, bu.username as buyerUsername, bu.phone as buyerPhone, " +
             "su.nickname as sellerNickname, su.username as sellerUsername, su.phone as sellerPhone " +
             "FROM orders o " +
@@ -93,7 +93,7 @@ public interface OrderMapper {
 
     @Select("<script>" +
             "SELECT o.*, p.name as productName, p.image as productImage, p.seller_id as sellerId, " +
-            "bu.campus_address as buyerAddress, su.campus_address as sellerAddress, " +
+            "COALESCE(o.receiver_address, bu.campus_address) as buyerAddress, su.campus_address as sellerAddress, " +
             "bu.nickname as buyerNickname, bu.username as buyerUsername, bu.phone as buyerPhone, " +
             "su.nickname as sellerNickname, su.username as sellerUsername, su.phone as sellerPhone " +
             "FROM orders o " +

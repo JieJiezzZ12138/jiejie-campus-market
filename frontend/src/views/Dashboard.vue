@@ -1032,6 +1032,8 @@ const onImageDrop = (targetIdx: number) => {
   productImageFileList.value = list
 }
 
+const csvEscape = (value: any) => `"${String(value || '').replace(/"/g, '""')}"`
+
 const exportProducts = () => {
   const rows = filteredAdminProducts.value || []
   const header = ['id', 'name', 'category', 'price', 'originalPrice', 'stock', 'description', 'image', 'publishStatus', 'auditStatus']
@@ -1039,13 +1041,13 @@ const exportProducts = () => {
   rows.forEach((x: any) => {
     const row = [
       x.id ?? '',
-      `"${String(x.name || '').replaceAll('"', '""')}"`,
-      `"${String(x.category || '').replaceAll('"', '""')}"`,
+      csvEscape(x.name),
+      csvEscape(x.category),
       x.price ?? '',
       x.originalPrice ?? '',
       x.stock ?? '',
-      `"${String(x.description || '').replaceAll('"', '""')}"`,
-      `"${String(x.image || x.imageUrl || '').replaceAll('"', '""')}"`,
+      csvEscape(x.description),
+      csvEscape(x.image || x.imageUrl),
       x.publishStatus ?? 1,
       x.auditStatus ?? 1
     ]
@@ -1291,7 +1293,7 @@ const fetchAdminOrders = async () => {
       return t.getFullYear() === now.getFullYear() && t.getMonth() === now.getMonth() && t.getDate() === now.getDate()
     })
     stats.value.todayOrders = todayList.length
-    stats.value.todayAmount = Number(todayList.reduce((s, x) => s + Number(x.totalAmount || 0), 0)).toFixed(2)
+    stats.value.todayAmount = Number(todayList.reduce((s, x) => s + Number(x.totalAmount || 0), 0).toFixed(2))
   } catch (e) {
     console.error('获取订单失败', e)
   } finally {

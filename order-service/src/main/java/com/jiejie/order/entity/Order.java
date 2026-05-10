@@ -15,6 +15,10 @@ public class Order {
     /** 0-待支付，1-已支付/待发货，2-已发货，3-已完成 */
     private Integer orderStatus;
     private Date createTime;
+    private Long addressId;
+    private String receiver;
+    private String receiverPhone;
+    private String receiverAddress;
 
     // 辅助字段：连表查询，非 orders 表列
     private String productName;

@@ -39,10 +39,10 @@
               <el-input v-model="registerForm.phone" placeholder="手机号（必填）" size="large" />
             </el-form-item>
             <el-form-item prop="email">
-              <el-input v-model="registerForm.email" placeholder="邮箱（可选）" size="large" />
+              <el-input v-model="registerForm.email" placeholder="邮箱（必填，用于接收验证码）" size="large" />
             </el-form-item>
             <el-form-item prop="phoneCode">
-              <el-input v-model="registerForm.phoneCode" placeholder="手机验证码" size="large">
+              <el-input v-model="registerForm.phoneCode" placeholder="邮箱验证码" size="large">
                 <template #append>
                   <el-button :disabled="emailSending || emailCountdown > 0" @click="sendRegisterCode">
                     {{ emailCountdown > 0 ? `${emailCountdown}s` : '发送验证码' }}
@@ -157,7 +157,7 @@ const registerRules = {
     { required: true, message: '请输入邮箱', trigger: 'blur' },
     { pattern: /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/, message: '邮箱格式不正确', trigger: 'blur' }
   ],
-  phoneCode: [{ required: true, message: '请输入手机验证码', trigger: 'blur' }],
+  phoneCode: [{ required: true, message: '请输入邮箱验证码', trigger: 'blur' }],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码至少 6 位', trigger: 'blur' }
@@ -222,7 +222,7 @@ const persistSession = (token, userInfo) => {
   localStorage.setItem('token', token)
   localStorage.setItem('user_role', role)
   localStorage.setItem('userInfo', JSON.stringify(userInfo))
-  if (role === 'ADMIN') {
+  if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
     ElMessage.success(`欢迎回来，管理员 ${nickname}`)
     router.push('/admin')
   } else {
@@ -263,11 +263,13 @@ const startCountdown = (targetRef) => {
 }
 
 const sendRegisterCode = async () => {
-  if (!registerForm.phone?.trim()) return ElMessage.warning('请先输入手机号')
+  const email = registerForm.email?.trim() || ''
+  if (!email) return ElMessage.warning('请先输入邮箱')
+  if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email)) return ElMessage.warning('邮箱格式不正确')
   emailSending.value = true
   try {
-    await request.post('/auth/email/send-code', { phone: registerForm.phone.trim(), bizType: 'REGISTER' })
-    ElMessage.success('验证码已发送，请查看短信模拟日志')
+    await request.post('/auth/email/send-code', { email, bizType: 'REGISTER' })
+    ElMessage.success('验证码已发送，请查看邮箱模拟日志')
     startCountdown(emailCountdown)
   } catch (e) {
     console.error(e)

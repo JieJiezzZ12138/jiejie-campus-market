@@ -161,7 +161,7 @@
 
     <el-dialog v-model="checkoutConfirmVisible" title="确认订单" width="560px">
       <el-form label-width="96px">
-        <el-form-item label="收货地址" required><el-select v-model="selectedAddressId" style="width:100%;" placeholder="请选择收货地址"><el-option v-for="a in addressList" :key="a.id" :label="`${a.contactName} ${a.phone} / ${a.detailAddress}`" :value="a.id" /></el-select></el-form-item>
+        <el-form-item label="收货地址" required><el-select v-model="selectedAddressId" style="width:100%;" placeholder="请选择收货地址"><el-option v-for="a in addressList" :key="a.id" :label="formatAddressOption(a)" :value="a.id" /></el-select></el-form-item>
         <el-form-item label="支付方式" required><el-radio-group v-model="paymentMethod"><el-radio value="ALIPAY">支付宝</el-radio><el-radio value="WECHAT">微信支付</el-radio><el-radio value="CAMPUS_COD">货到付款</el-radio></el-radio-group></el-form-item>
         <el-form-item label="订单金额"><span style="color:#e76f51;font-size:20px;font-weight:700;">¥ {{ cartTotalPrice }}</span></el-form-item>
       </el-form>
@@ -428,6 +428,7 @@ const fetchAddressList = async () => {
     if (def?.id) selectedAddressId.value = def.id
   } catch { addressList.value = [] }
 }
+const formatAddressOption = (a: any) => `${a.receiver || a.contactName || '收货人'} ${a.phone || ''} / ${a.province || ''}${a.city || ''}${a.district || ''} ${a.detailAddress || ''}`
 
 const openCheckoutConfirm = async () => {
   const selected = cartList.value.filter((x: any) => checkedMap.value[x.productId || x.id])
@@ -457,7 +458,8 @@ const handleCheckout = async () => {
   checkoutLoading.value = true
   try {
     const couponParam = selectedCouponId.value ? `&couponId=${selectedCouponId.value}` : ''
-    await request.post(`/order/checkout?totalAmount=${cartTotalPrice.value}${couponParam}`)
+    const productIds = selected.map((x: any) => x.productId || x.id).filter(Boolean).join(',')
+    await request.post(`/order/checkout?totalAmount=${cartTotalPrice.value}&addressId=${selectedAddressId.value}&productIds=${encodeURIComponent(productIds)}${couponParam}`)
     await ElMessageBox.alert('订单已生成，请前往订单中心完成支付', '🎉 下单成功', { confirmButtonText: '去支付', type: 'success', center: true })
     cartVisible.value = false
     checkoutConfirmVisible.value = false

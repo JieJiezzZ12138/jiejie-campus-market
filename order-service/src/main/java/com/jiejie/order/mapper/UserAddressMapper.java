@@ -10,6 +10,9 @@ public interface UserAddressMapper {
     @Select("SELECT * FROM user_address WHERE user_id = #{userId} ORDER BY is_default DESC, id DESC")
     List<UserAddress> listByUserId(@Param("userId") Long userId);
 
+    @Select("SELECT * FROM user_address WHERE id = #{id} AND user_id = #{userId}")
+    UserAddress findByIdAndUser(@Param("id") Long id, @Param("userId") Long userId);
+
     @Insert("INSERT INTO user_address(user_id, receiver, phone, province, city, district, detail_address, is_default, create_time) " +
             "VALUES(#{userId}, #{receiver}, #{phone}, #{province}, #{city}, #{district}, #{detailAddress}, #{isDefault}, NOW())")
     int insert(UserAddress x);

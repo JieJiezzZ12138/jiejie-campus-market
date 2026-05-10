@@ -104,11 +104,14 @@ public class AuthController {
         if (!phone.matches("^1[3-9]\\d{9}$")) {
             return Result.error("手机号格式不正确");
         }
-        if (org.springframework.util.StringUtils.hasText(email) && !email.matches("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")) {
+        if (!org.springframework.util.StringUtils.hasText(email)) {
+            return Result.error("请输入邮箱");
+        }
+        if (!email.matches("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")) {
             return Result.error("邮箱格式不正确");
         }
         if (!org.springframework.util.StringUtils.hasText(phoneCode)) {
-            return Result.error("请输入手机验证码");
+            return Result.error("请输入邮箱验证码");
         }
         if (userMapper.findByUsername(username) != null) {
             return Result.error("该账号已被注册");
@@ -117,15 +120,13 @@ public class AuthController {
         if (byPhone != null) {
             return Result.error("该手机号已被注册");
         }
-        if (org.springframework.util.StringUtils.hasText(email)) {
-            SysUser byEmail = userMapper.findByEmail(email);
-            if (byEmail != null) {
-                return Result.error("该邮箱已被注册");
-            }
+        SysUser byEmail = userMapper.findByEmail(email);
+        if (byEmail != null) {
+            return Result.error("该邮箱已被注册");
         }
-        int valid = emailVerifyCodeMapper.countValid(phone, "REGISTER", phoneCode);
+        int valid = emailVerifyCodeMapper.countValid(email, "REGISTER", phoneCode);
         if (valid <= 0) {
-            return Result.error("手机验证码无效或已过期");
+            return Result.error("邮箱验证码无效或已过期");
         }
 
 
@@ -141,7 +142,7 @@ public class AuthController {
         user.setCampusAddress(campusAddress != null ? campusAddress.trim() : null);
 
         userMapper.insert(user);
-        emailVerifyCodeMapper.consume(phone, "REGISTER", phoneCode);
+        emailVerifyCodeMapper.consume(email, "REGISTER", phoneCode);
 
         SysUser saved = userMapper.findById(user.getId());
         String token = JwtUtils.generateToken(saved.getId(), saved.getUsername(),
@@ -163,16 +164,14 @@ public class AuthController {
             return Result.error("无效的业务类型");
         }
         if ("REGISTER".equals(bizType)) {
-            if (!org.springframework.util.StringUtils.hasText(phone)) return Result.error("请输入手机号");
-            if (!phone.matches("^1[3-9]\\d{9}$")) return Result.error("手机号格式不正确");
-            SysUser byPhone = userMapper.findByPhone(phone);
-            if (byPhone != null) {
-                return Result.error("该手机号已被注册");
-            }
+            if (!org.springframework.util.StringUtils.hasText(email)) return Result.error("请输入邮箱");
+            if (!email.matches("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")) return Result.error("邮箱格式不正确");
+            SysUser byEmail = userMapper.findByEmail(email);
+            if (byEmail != null) return Result.error("该邮箱已被注册");
             String code = String.format("%06d", new Random().nextInt(1000000));
-            emailVerifyCodeMapper.insert(phone, bizType, code, 10);
-            System.out.println("[JEMALL_SMS] send code to " + phone + ", biz=" + bizType + ", code=" + code);
-            return Result.success("手机验证码已发送（10分钟有效）");
+            emailVerifyCodeMapper.insert(email, bizType, code, 10);
+            System.out.println("[JEMALL_MAIL] send code to " + email + ", biz=" + bizType + ", code=" + code);
+            return Result.success("邮箱验证码已发送（10分钟有效）");
         }
         // RESET_PASSWORD: 按 mode 严格走手机号或邮箱分支
         if (!"phone".equals(mode) && !"email".equals(mode)) {

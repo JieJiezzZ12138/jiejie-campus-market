@@ -9,6 +9,7 @@ import com.jiejie.order.entity.OrderFeedback;
 import com.jiejie.order.entity.PrivateMessage;
 import com.jiejie.order.entity.DisputeMessage;
 import com.jiejie.order.entity.User;
+import com.jiejie.order.entity.UserAddress;
 import com.jiejie.order.mapper.AdminNotificationMapper;
 import com.jiejie.order.mapper.CartMapper;
 import com.jiejie.order.mapper.ChatThreadMapper;
@@ -17,6 +18,7 @@ import com.jiejie.order.mapper.OrderMapper;
 import com.jiejie.order.mapper.OrderNoticeMapper;
 import com.jiejie.order.mapper.PrivateMessageMapper;
 import com.jiejie.order.mapper.UserMapper;
+import com.jiejie.order.mapper.UserAddressMapper;
 import com.jiejie.order.mapper.CouponMapper;
 import com.jiejie.order.mapper.DisputeMessageMapper;
 import com.jiejie.order.security.AuthContext;
@@ -59,6 +61,9 @@ public class OrderController {
     private UserMapper userMapper;
 
     @Autowired
+    private UserAddressMapper userAddressMapper;
+
+    @Autowired
     private ChatThreadMapper chatThreadMapper;
 
     @Autowired
@@ -86,7 +91,9 @@ public class OrderController {
     @Transactional
     public Result checkout(HttpServletRequest request,
                            @RequestParam("totalAmount") Double totalAmount,
-                           @RequestParam(value = "couponId", required = false) Long couponId) {
+                           @RequestParam(value = "couponId", required = false) Long couponId,
+                           @RequestParam(value = "addressId", required = false) Long addressId,
+                           @RequestParam(value = "productIds", required = false) String productIds) {
 
         // 👉 核心安全升级：从拦截器口袋里拿出绝对真实的身份
         Long currentUserId = AuthContext.currentUserId(request);
@@ -98,10 +105,34 @@ public class OrderController {
 
         System.out.println("收到结算请求，真实用户: " + currentUsername + ", 总计金额: " + totalAmount);
 
-        // 使用真实 username 查询他自己的购物车
         List<Cart> cartList = cartMapper.selectByUsername(currentUsername);
         if (cartList == null || cartList.isEmpty()) {
             return Result.error("购物车是空的，无法结算");
+        }
+        if (productIds != null && !productIds.trim().isEmpty()) {
+            List<Long> selectedProductIds;
+            try {
+                selectedProductIds = Arrays.stream(productIds.split(","))
+                        .map(String::trim)
+                        .filter(StringUtils::hasText)
+                        .map(Long::valueOf)
+                        .toList();
+            } catch (NumberFormatException ex) {
+                return Result.error("结算商品参数无效");
+            }
+            cartList = cartList.stream()
+                    .filter(item -> selectedProductIds.contains(item.getProductId()))
+                    .collect(Collectors.toList());
+        }
+        if (cartList.isEmpty()) {
+            return Result.error("未选择可结算的购物车商品");
+        }
+        if (addressId == null) {
+            return Result.error("请选择收货地址");
+        }
+        UserAddress address = userAddressMapper.findByIdAndUser(addressId, currentUserId);
+        if (address == null) {
+            return Result.error("收货地址不存在或不属于当前用户");
         }
 
         String batchNo = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
@@ -130,7 +161,7 @@ public class OrderController {
         for (int i = 0; i < cartList.size(); i++) {
             Cart cartItem = cartList.get(i);
             Order order = new Order();
-            order.setOrderNo("ORD" + batchNo + System.currentTimeMillis() % 1000);
+            order.setOrderNo("ORD" + batchNo + System.currentTimeMillis() % 1000 + String.format("%02d", i));
 
             // 👉 核心修复：终于可以把写死的 2L 换成真实买家 ID 了！
             order.setBuyerId(currentUserId);
@@ -151,6 +182,10 @@ public class OrderController {
             }
             order.setTotalAmount(itemTotal);
             order.setSelectedSpec(cartItem.getSelectedSpec());
+            order.setAddressId(address.getId());
+            order.setReceiver(address.getReceiver());
+            order.setReceiverPhone(address.getPhone());
+            order.setReceiverAddress(formatAddress(address));
 
             // 0-待支付/已下单
             order.setOrderStatus(0);
@@ -190,12 +225,22 @@ public class OrderController {
         }
 
         // 结算完成后，清空该用户的购物车
-        cartMapper.deleteByUsername(currentUsername);
+        for (Cart cartItem : cartList) {
+            cartMapper.deleteByUsernameAndProductId(currentUsername, cartItem.getProductId());
+        }
         if (couponId != null) {
             couponMapper.markUsed(currentUserId, couponId);
         }
 
         return Result.success("下单成功，请在订单中心完成支付！");
+    }
+
+    private String formatAddress(UserAddress address) {
+        return String.join("",
+                address.getProvince() != null ? address.getProvince() : "",
+                address.getCity() != null ? address.getCity() : "",
+                address.getDistrict() != null ? address.getDistrict() : "",
+                address.getDetailAddress() != null ? address.getDetailAddress() : "");
     }
 
     @GetMapping("/coupon/list")

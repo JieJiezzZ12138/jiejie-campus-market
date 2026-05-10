@@ -46,6 +46,7 @@ public class ProductController {
      * 1. 查询商品列表
      */
     @GetMapping("/list")
+    @Cacheable(cacheNames = "product:list", key = "T(java.util.Objects).toString(#category, '') + ':' + T(java.util.Objects).toString(#keyword, '') + ':' + T(java.util.Objects).toString(#sortBy, '')")
     public Result list(@RequestParam(value = "category", required = false) String category,
                        @RequestParam(value = "keyword", required = false) String keyword,
                        @RequestParam(value = "sortBy", required = false) String sortBy) {
@@ -59,6 +60,7 @@ public class ProductController {
     }
 
     @GetMapping("/detail")
+    @Cacheable(cacheNames = "product:detail", key = "#id")
     public Result detail(@RequestParam("id") Long id) {
         Product p = productMapper.selectDetailById(id);
         if (p == null) return Result.error("商品不存在");
@@ -66,6 +68,7 @@ public class ProductController {
     }
 
     @GetMapping("/category/list")
+    @Cacheable(cacheNames = "product:category:list")
     public Result categoryList() {
         return Result.success(productMapper.listOnlineCategories());
     }
@@ -74,7 +77,7 @@ public class ProductController {
      * 2. 发布商品（管理员入口）
      */
     @PostMapping("/publish")
-    @CacheEvict(cacheNames = {"product:list", "product:category:list"}, allEntries = true)
+    @CacheEvict(cacheNames = {"product:list", "product:detail", "product:category:list"}, allEntries = true)
     public Result publish(@RequestBody Product product, HttpServletRequest request) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         boolean isAdmin = auth != null && auth.getAuthorities() != null &&
@@ -188,14 +191,14 @@ public class ProductController {
     }
 
     @PostMapping("/admin/status")
-    @CacheEvict(cacheNames = {"product:list"}, allEntries = true)
+    @CacheEvict(cacheNames = {"product:list", "product:detail"}, allEntries = true)
     public Result updateStatus(@RequestParam(value = "id") Long id, @RequestParam(value = "status") Integer status) {
         productMapper.updateStatus(id, status);
         return Result.success("操作成功");
     }
 
     @PostMapping("/admin/delete")
-    @CacheEvict(cacheNames = {"product:list"}, allEntries = true)
+    @CacheEvict(cacheNames = {"product:list", "product:detail"}, allEntries = true)
     public Result adminDelete(@RequestParam("id") Long id) {
         int n = productMapper.adminDeleteById(id);
         if (n == 0) return Result.error("商品不存在");
@@ -229,7 +232,7 @@ public class ProductController {
     }
 
     @PostMapping("/admin/save")
-    @CacheEvict(cacheNames = {"product:list"}, allEntries = true)
+    @CacheEvict(cacheNames = {"product:list", "product:detail"}, allEntries = true)
     public Result adminSave(@RequestBody Product product, HttpServletRequest request) {
         Object userIdAttr = request.getAttribute("currentUserId");
         if (userIdAttr == null) return Result.error("请先登录");
