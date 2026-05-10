@@ -31,13 +31,19 @@
           <p>销量：{{ detail.salesCount || 0 }}</p>
           <div v-if="specColors.length || specSizes.length" style="margin:10px 0;">
             <div v-if="specColors.length">颜色：
-              <el-tag v-for="c in specColors" :key="c" style="margin-right:6px;">{{ c }}</el-tag>
+              <el-radio-group v-model="selectedColor">
+                <el-radio-button v-for="c in specColors" :key="c" :label="c">{{ c }}</el-radio-button>
+              </el-radio-group>
             </div>
             <div v-if="specSizes.length" style="margin-top:8px;">尺寸：
-              <el-tag v-for="s in specSizes" :key="s" type="success" style="margin-right:6px;">{{ s }}</el-tag>
+              <el-radio-group v-model="selectedSize">
+                <el-radio-button v-for="s in specSizes" :key="s" :label="s">{{ s }}</el-radio-button>
+              </el-radio-group>
             </div>
           </div>
           <div style="margin-top:12px;">
+            <el-input-number v-model="buyQty" :min="1" :max="99" style="margin-right:8px;" />
+            <el-button type="warning" :loading="addingCart" @click="addToCartFromDetail">加入购物车</el-button>
             <el-button type="primary" @click="receiveCoupon">领取优惠券</el-button>
             <el-button type="success" @click="router.push('/')">返回选购</el-button>
           </div>
@@ -58,6 +64,10 @@ const router = useRouter()
 const detail = ref<any>(null)
 const specColors = ref<string[]>([])
 const specSizes = ref<string[]>([])
+const selectedColor = ref('')
+const selectedSize = ref('')
+const buyQty = ref(1)
+const addingCart = ref(false)
 const imageList = ref<string[]>([])
 const activeImage = ref('')
 const parseImages = (image: any, imageUrl: any): string[] => {
@@ -84,9 +94,13 @@ onMounted(async () => {
     const spec = detail.value?.specJson ? JSON.parse(detail.value.specJson) : {}
     specColors.value = Array.isArray(spec.colors) ? spec.colors : []
     specSizes.value = Array.isArray(spec.sizes) ? spec.sizes : []
+    selectedColor.value = specColors.value[0] || ''
+    selectedSize.value = specSizes.value[0] || ''
   } catch {
     specColors.value = []
     specSizes.value = []
+    selectedColor.value = ''
+    selectedSize.value = ''
   }
 })
 
@@ -97,6 +111,25 @@ const receiveCoupon = async () => {
     await request.post(`/order/coupon/receive?couponId=${list[0].id}`)
   } catch (e) {
     console.error(e)
+  }
+}
+
+const addToCartFromDetail = async () => {
+  if (!detail.value?.id) return
+  addingCart.value = true
+  try {
+    const parts = []
+    if (selectedColor.value) parts.push(`颜色:${selectedColor.value}`)
+    if (selectedSize.value) parts.push(`尺寸:${selectedSize.value}`)
+    const selectedSpec = parts.join('，')
+    const qty = Number(buyQty.value || 1)
+    for (let i = 0; i < qty; i++) {
+      await request.post(`/cart/add-with-spec?productId=${detail.value.id}&selectedSpec=${encodeURIComponent(selectedSpec)}`)
+    }
+  } catch (e) {
+    console.error(e)
+  } finally {
+    addingCart.value = false
   }
 }
 </script>
