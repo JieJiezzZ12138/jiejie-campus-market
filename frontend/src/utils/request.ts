@@ -47,7 +47,9 @@ type ApiResponseInterceptor = (
   onRejected?: (error: AxiosError) => unknown
 ) => number
 
-const useApiResponseInterceptor = rawRequest.interceptors.response.use as unknown as ApiResponseInterceptor
+const useApiResponseInterceptor = rawRequest.interceptors.response.use.bind(
+  rawRequest.interceptors.response
+) as unknown as ApiResponseInterceptor
 
 useApiResponseInterceptor(
   (response) => {
