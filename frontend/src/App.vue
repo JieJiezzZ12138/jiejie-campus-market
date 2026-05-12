@@ -3,8 +3,6 @@
 </template>
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap');
-
 :root {
   --brand: #1f7a6f;
   --brand-2: #2a9d8f;
