@@ -24,7 +24,7 @@ public interface ChatThreadMapper {
     @Options(useGeneratedKeys = true, keyProperty = "id")
     void insert(ChatThread row);
 
-    @Select("SELECT ct.id AS threadId, ct.product_id AS productId, p.name AS productName, " +
+    @Select("SELECT ct.id AS threadId, ct.product_id AS productId, " +
             "CASE WHEN ct.seller_id = #{uid} THEN ct.customer_id ELSE ct.seller_id END AS peerUserId, " +
             "CASE WHEN ct.seller_id = #{uid} THEN uc.nickname ELSE us.nickname END AS peerNickname, " +
             "(SELECT pm.content FROM private_message pm WHERE pm.thread_id = ct.id ORDER BY pm.id DESC LIMIT 1) AS lastPreview, " +
@@ -34,7 +34,6 @@ public interface ChatThreadMapper {
             " WHERE pm.thread_id = ct.id AND pm.receiver_id = #{uid} " +
             " AND (rr.last_read_time IS NULL OR pm.create_time > rr.last_read_time)) AS unreadCount " +
             "FROM chat_thread ct " +
-            "JOIN product p ON p.id = ct.product_id " +
             "LEFT JOIN sys_user us ON us.id = ct.seller_id " +
             "LEFT JOIN sys_user uc ON uc.id = ct.customer_id " +
             "WHERE ct.seller_id = #{uid} OR ct.customer_id = #{uid} " +

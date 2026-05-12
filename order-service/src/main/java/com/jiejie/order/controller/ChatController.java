@@ -1,19 +1,19 @@
 package com.jiejie.order.controller;
 
 import com.jiejie.common.Result;
+import com.jiejie.order.dto.ProductSummary;
 import com.jiejie.order.entity.ChatInboxItem;
 import com.jiejie.order.entity.ChatThread;
 import com.jiejie.order.entity.Order;
 import com.jiejie.order.entity.PrivateMessage;
 import com.jiejie.order.entity.User;
+import com.jiejie.order.feign.ProductFeign;
 import com.jiejie.order.mapper.ChatThreadMapper;
 import com.jiejie.order.mapper.ChatThreadReadMapper;
 import com.jiejie.order.mapper.OrderMapper;
 import com.jiejie.order.mapper.PrivateMessageMapper;
 import com.jiejie.order.mapper.UserMapper;
 import com.jiejie.order.security.AuthContext;
-import com.jiejie.product.entity.Product;
-import com.jiejie.product.mapper.ProductMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
@@ -31,7 +31,7 @@ public class ChatController {
     private OrderMapper orderMapper;
 
     @Autowired
-    private ProductMapper productMapper;
+    private ProductFeign productFeign;
 
     @Autowired
     private ChatThreadMapper chatThreadMapper;
@@ -72,6 +72,7 @@ public class ChatController {
         if (me == null) return Result.error("用户不存在");
         List<ChatInboxItem> rows = chatThreadMapper.listInboxForUser(uid);
         rows = rows.stream().filter(x -> x.getPeerUserId() != null).toList();
+        hydrateInboxProducts(rows);
         return Result.success(rows);
     }
 
@@ -111,7 +112,7 @@ public class ChatController {
         if (!ensureEcommercePair(t.getSellerId(), t.getCustomerId())) {
             return Result.error("该会话不符合商城咨询规则");
         }
-        Product p = productMapper.selectById(t.getProductId());
+        ProductSummary p = productFeign.getSummary(t.getProductId());
         Long peerId = sameUser(uid, t.getSellerId()) ? t.getCustomerId() : t.getSellerId();
         User peer = peerId != null ? userMapper.findById(peerId) : null;
         String peerNick = peer != null && StringUtils.hasText(peer.getNickname()) ? peer.getNickname() : "用户";
@@ -139,7 +140,7 @@ public class ChatController {
     private Result buildProductContext(Long uid, Long productId) {
         User me = userMapper.findById(uid);
         if (me == null) return Result.error("用户不存在");
-        Product p = productMapper.selectById(productId);
+        ProductSummary p = productFeign.getSummary(productId);
         if (p == null) {
             return Result.error("商品不存在");
         }
@@ -198,7 +199,7 @@ public class ChatController {
                 ? (buyerU != null && StringUtils.hasText(buyerU.getNickname()) ? buyerU.getNickname() : "买家")
                 : (sellerU != null && StringUtils.hasText(sellerU.getNickname()) ? sellerU.getNickname() : "商家"));
         map.put("chatTitle", "订单沟通：" + (o.getProductName() != null ? o.getProductName() : "商品"));
-        Product p = productMapper.selectById(o.getProductId());
+        ProductSummary p = productFeign.getSummary(o.getProductId());
         map.put("sellerName", p != null ? p.getSellerName() : null);
         return Result.success(map);
     }
@@ -262,6 +263,29 @@ public class ChatController {
         return Result.success(total);
     }
 
+    private void hydrateInboxProducts(List<ChatInboxItem> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return;
+        }
+        Map<Long, ProductSummary> productMap = new LinkedHashMap<>();
+        for (ChatInboxItem row : rows) {
+            Long productId = row.getProductId();
+            if (productId == null || productMap.containsKey(productId)) {
+                continue;
+            }
+            ProductSummary summary = productFeign.getSummary(productId);
+            if (summary != null) {
+                productMap.put(productId, summary);
+            }
+        }
+        for (ChatInboxItem row : rows) {
+            ProductSummary summary = productMap.get(row.getProductId());
+            if (summary != null) {
+                row.setProductName(summary.getName());
+            }
+        }
+    }
+
     @PostMapping("/send")
     public Result send(HttpServletRequest request, @RequestBody Map<String, Object> body) {
         Long uid = AuthContext.currentUserId(request);
@@ -307,7 +331,7 @@ public class ChatController {
                 }
             }
         } else if (productIdParam != null) {
-            Product p = productMapper.selectById(productIdParam);
+            ProductSummary p = productFeign.getSummary(productIdParam);
             if (p == null) {
                 return Result.error("商品不存在");
             }

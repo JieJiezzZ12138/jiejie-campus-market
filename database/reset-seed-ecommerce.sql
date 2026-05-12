@@ -50,6 +50,9 @@ CREATE TABLE IF NOT EXISTS orders (
   order_no VARCHAR(64) NOT NULL UNIQUE,
   buyer_id BIGINT NOT NULL,
   product_id BIGINT NOT NULL,
+  product_name VARCHAR(120) DEFAULT NULL,
+  product_image VARCHAR(500) DEFAULT NULL,
+  seller_id BIGINT DEFAULT NULL,
   buy_count INT NOT NULL DEFAULT 1,
   selected_spec VARCHAR(255) DEFAULT NULL,
   address_id BIGINT DEFAULT NULL,
@@ -90,6 +93,27 @@ SET @alter_image_url := IF(
 PREPARE stmt_alter_image_url FROM @alter_image_url;
 EXECUTE stmt_alter_image_url;
 DEALLOCATE PREPARE stmt_alter_image_url;
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'orders' AND column_name = 'product_name'),
+  'SELECT 1',
+  'ALTER TABLE orders ADD COLUMN product_name VARCHAR(120) NULL AFTER product_id'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'orders' AND column_name = 'product_image'),
+  'SELECT 1',
+  'ALTER TABLE orders ADD COLUMN product_image VARCHAR(500) NULL AFTER product_name'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'orders' AND column_name = 'seller_id'),
+  'SELECT 1',
+  'ALTER TABLE orders ADD COLUMN seller_id BIGINT NULL AFTER product_image'
+);
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(
@@ -164,11 +188,57 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS cart (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT DEFAULT NULL,
   username VARCHAR(64) NOT NULL,
   product_id BIGINT NOT NULL,
   quantity INT NOT NULL DEFAULT 1,
   selected_spec VARCHAR(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+SET @sql = IF(
+  EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'cart' AND column_name = 'user_id'),
+  'SELECT 1',
+  'ALTER TABLE cart ADD COLUMN user_id BIGINT NULL AFTER id'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+UPDATE cart c
+LEFT JOIN sys_user u ON u.username = c.username
+SET c.user_id = u.id
+WHERE c.user_id IS NULL;
+
+UPDATE cart keep_row
+JOIN (
+  SELECT MIN(id) AS keep_id, user_id, product_id, SUM(quantity) AS total_quantity
+  FROM cart
+  WHERE user_id IS NOT NULL
+  GROUP BY user_id, product_id
+  HAVING COUNT(*) > 1
+) merged
+  ON keep_row.id = merged.keep_id
+SET keep_row.quantity = merged.total_quantity;
+
+DELETE c1
+FROM cart c1
+JOIN cart c2
+  ON c1.user_id = c2.user_id
+ AND c1.product_id = c2.product_id
+ AND c1.id > c2.id
+WHERE c1.user_id IS NOT NULL;
+
+SET @idx_sql = IF(
+  EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'cart' AND index_name = 'idx_cart_user_id'),
+  'SELECT 1',
+  'CREATE INDEX idx_cart_user_id ON cart(user_id)'
+);
+PREPARE stmt FROM @idx_sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @uk_sql = IF(
+  EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'cart' AND index_name = 'uk_cart_user_product'),
+  'SELECT 1',
+  'CREATE UNIQUE INDEX uk_cart_user_product ON cart(user_id, product_id)'
+);
+PREPARE stmt FROM @uk_sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS product_favorite (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -498,10 +568,10 @@ SELECT p.id, @u2, 4, '鞋子尺码标准，脚感舒适，跑步一周体验不�
 UNION ALL
 SELECT p.id, @u3, 5, '蓝莓新鲜度高，冷链到家，孩子很喜欢。', NULL, NOW() FROM product p WHERE p.name = '云南冰糖蓝莓 2kg';
 
-INSERT INTO cart(username, product_id, quantity, selected_spec)
-SELECT 'buyer_wang', p.id, 1, '黑白/42' FROM product p WHERE p.name = 'Nike Pegasus 41 跑鞋'
+INSERT INTO cart(user_id, username, product_id, quantity, selected_spec)
+SELECT @u3, 'buyer_wang', p.id, 1, '黑白/42' FROM product p WHERE p.name = 'Nike Pegasus 41 跑鞋'
 UNION ALL
-SELECT 'buyer_wang', p.id, 2, '2kg' FROM product p WHERE p.name = '云南冰糖蓝莓 2kg';
+SELECT @u3, 'buyer_wang', p.id, 2, '2kg' FROM product p WHERE p.name = '云南冰糖蓝莓 2kg';
 
 SET @p1 = (SELECT id FROM product WHERE name = 'Apple iPhone 14 128G（在保）' LIMIT 1);
 SET @p2 = (SELECT id FROM product WHERE name = '戴森吹风机 HD15' LIMIT 1);

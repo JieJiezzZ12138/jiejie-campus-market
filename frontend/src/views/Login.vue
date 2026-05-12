@@ -11,7 +11,7 @@
         <el-tab-pane label="登录" name="login">
           <el-form :model="loginForm" :rules="rules" ref="loginFormRef">
             <el-form-item prop="username">
-              <el-input v-model="loginForm.username" placeholder="学号 / 管理员账号" :prefix-icon="User" size="large" />
+              <el-input v-model="loginForm.username" placeholder="登录账号 / 管理员账号" :prefix-icon="User" size="large" />
             </el-form-item>
 
             <el-form-item prop="password">
@@ -30,7 +30,7 @@
         <el-tab-pane label="注册" name="register">
           <el-form :model="registerForm" :rules="registerRules" ref="registerFormRef">
             <el-form-item prop="username">
-              <el-input v-model="registerForm.username" placeholder="设置登录账号（学号或自定义）" :prefix-icon="User" size="large" />
+              <el-input v-model="registerForm.username" placeholder="设置登录账号" :prefix-icon="User" size="large" />
             </el-form-item>
             <el-form-item prop="nickname">
               <el-input v-model="registerForm.nickname" placeholder="昵称（不填则与账号相同）" :prefix-icon="User" size="large" />
@@ -66,7 +66,7 @@
 
       <div class="login-footer">
         <p class="copyright">© 2026 <strong>Jemall</strong> · All Rights Reserved</p>
-        <p class="project-tag">杰物电商平台 | Web 开发课程大作业</p>
+        <p class="project-tag">杰物电商平台 | 二手交易与好物商城</p>
       </div>
     </div>
     <el-dialog v-model="resetVisible" title="找回密码" width="460px">

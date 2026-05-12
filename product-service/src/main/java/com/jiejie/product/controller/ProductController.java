@@ -2,6 +2,7 @@ package com.jiejie.product.controller;
 
 import com.jiejie.common.Result;
 import com.jiejie.common.utils.JwtUtils;
+import com.jiejie.product.dto.ProductSummaryResponse;
 import com.jiejie.product.entity.Product;
 import com.jiejie.product.entity.ProductReview;
 import com.jiejie.product.mapper.ProductFavoriteMapper;
@@ -33,6 +34,9 @@ import java.util.stream.Collectors;
 @RequestMapping("/product")
 public class ProductController {
     private static final int LEGACY_IMAGE_URL_SAFE_LEN = 480;
+    private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
+    private static final String INTERNAL_TOKEN_ENV = "INTERNAL_API_TOKEN";
+    private static final String DEFAULT_INTERNAL_TOKEN = "dev-only-internal-api-token";
 
     @Autowired
     private ProductMapper productMapper;
@@ -105,6 +109,69 @@ public class ProductController {
         Product p = productMapper.selectDetailById(id);
         if (p == null) return Result.error("商品不存在");
         return Result.success(p);
+    }
+
+    @GetMapping("/internal/summary")
+    public ProductSummaryResponse internalSummary(@RequestParam("id") Long id,
+                                                  @RequestHeader(value = INTERNAL_TOKEN_HEADER, required = false) String internalToken) {
+        verifyInternalToken(internalToken);
+        Product p = productMapper.selectById(id);
+        return toSummary(p);
+    }
+
+    @PostMapping("/internal/reduce-stock")
+    public Result internalReduceStock(@RequestParam("id") Long id,
+                                      @RequestParam("quantity") Integer quantity,
+                                      @RequestHeader(value = INTERNAL_TOKEN_HEADER, required = false) String internalToken) {
+        verifyInternalToken(internalToken);
+        if (quantity == null || quantity < 1) {
+            throw new IllegalArgumentException("扣减库存数量必须大于 0");
+        }
+        int reduced = productMapper.reduceStock(id, quantity);
+        if (reduced == 0) {
+            return Result.error("商品库存不足");
+        }
+        Product latest = productMapper.selectById(id);
+        if (latest != null && latest.getStock() != null) {
+            productMapper.updateStatus(id, latest.getStock() <= 0 ? 2 : 1);
+            latest.setPublishStatus(latest.getStock() <= 0 ? 2 : 1);
+        }
+        return Result.success(toSummary(latest));
+    }
+
+    @PostMapping("/internal/status")
+    public Result internalUpdateStatus(@RequestParam("id") Long id,
+                                       @RequestParam("status") Integer status,
+                                       @RequestHeader(value = INTERNAL_TOKEN_HEADER, required = false) String internalToken) {
+        verifyInternalToken(internalToken);
+        productMapper.updateStatus(id, status);
+        return Result.success("操作成功");
+    }
+
+    private ProductSummaryResponse toSummary(Product p) {
+        if (p == null) {
+            return null;
+        }
+        ProductSummaryResponse response = new ProductSummaryResponse();
+        response.setId(p.getId());
+        response.setName(p.getName());
+        response.setPrice(p.getPrice() != null ? p.getPrice().doubleValue() : null);
+        response.setImage(p.getImage());
+        response.setImageUrl(p.getImageUrl());
+        response.setSellerId(p.getSellerId());
+        response.setSellerName(p.getSellerName());
+        response.setStock(p.getStock());
+        return response;
+    }
+
+    private void verifyInternalToken(String token) {
+        String expected = System.getenv(INTERNAL_TOKEN_ENV);
+        if (expected == null || expected.trim().isEmpty()) {
+            expected = DEFAULT_INTERNAL_TOKEN;
+        }
+        if (!expected.equals(token)) {
+            throw new IllegalArgumentException("内部接口凭证无效");
+        }
     }
 
     @GetMapping("/category/list")
@@ -430,11 +497,14 @@ public class ProductController {
         if (review.getRating() == null || review.getRating() < 1 || review.getRating() > 5) {
             return Result.error("评分范围应为1-5");
         }
-        if (review.getContent() == null || review.getContent().trim().isEmpty()) {
-            return Result.error("评价内容不能为空");
+        String content = review.getContent() == null ? "" : review.getContent().trim();
+        String imageUrl = review.getImageUrl() == null ? "" : review.getImageUrl().trim();
+        if (content.isEmpty() && imageUrl.isEmpty()) {
+            return Result.error("评价内容和图片不能同时为空");
         }
         review.setUserId(Long.parseLong(userIdAttr.toString()));
-        review.setContent(review.getContent().trim());
+        review.setContent(content);
+        review.setImageUrl(imageUrl);
         productReviewMapper.insert(review);
         return Result.success("评价成功");
     }

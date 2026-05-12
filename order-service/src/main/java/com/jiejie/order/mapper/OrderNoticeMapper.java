@@ -39,14 +39,13 @@ public interface OrderNoticeMapper {
     @Select("SELECT n.id, n.order_id AS orderId, n.user_id AS userId, n.scope, " +
             "n.notice_type AS noticeType, n.is_read AS isRead, n.create_time AS createTime, " +
             "o.order_no AS orderNo, o.order_status AS orderStatus, " +
-            "p.name AS productName, p.image AS productImage, " +
-            "o.buyer_id AS buyerId, p.seller_id AS sellerId, " +
+            "o.product_name AS productName, o.product_image AS productImage, " +
+            "o.buyer_id AS buyerId, o.seller_id AS sellerId, " +
             "bu.nickname AS buyerNickname, su.nickname AS sellerNickname " +
             "FROM order_notice n " +
             "LEFT JOIN orders o ON o.id = n.order_id " +
-            "LEFT JOIN product p ON p.id = o.product_id " +
             "LEFT JOIN sys_user bu ON bu.id = o.buyer_id " +
-            "LEFT JOIN sys_user su ON su.id = p.seller_id " +
+            "LEFT JOIN sys_user su ON su.id = o.seller_id " +
             "WHERE n.user_id = #{userId} AND n.scope = #{scope} " +
             "ORDER BY n.is_read ASC, n.create_time DESC " +
             "LIMIT #{limit}")

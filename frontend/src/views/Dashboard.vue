@@ -481,7 +481,7 @@
                 <el-form-item label="登录账号"><el-input v-model="accountForm.username" disabled /></el-form-item>
                 <el-form-item label="昵称"><el-input v-model="accountForm.nickname" /></el-form-item>
                 <el-form-item label="手机号"><el-input v-model="accountForm.phone" /></el-form-item>
-                <el-form-item label="校区地址"><el-input v-model="accountForm.campusAddress" /></el-form-item>
+                <el-form-item label="收货地址"><el-input v-model="accountForm.campusAddress" /></el-form-item>
                 <el-form-item><el-button type="primary" @click="saveAccountProfile">保存资料</el-button></el-form-item>
               </el-form>
               <el-divider />
@@ -618,7 +618,7 @@
       <el-descriptions-item label="手机号">{{ currentUserDetail.phone || '-' }}</el-descriptions-item>
       <el-descriptions-item label="角色">{{ currentUserDetail.role || '-' }}</el-descriptions-item>
       <el-descriptions-item label="状态">{{ Number(currentUserDetail.status) === 1 ? '正常' : '已封禁' }}</el-descriptions-item>
-      <el-descriptions-item label="校区地址">{{ currentUserDetail.campusAddress || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="收货地址">{{ currentUserDetail.campusAddress || '-' }}</el-descriptions-item>
     </el-descriptions>
   </el-dialog>
   <el-dialog v-model="productFormVisible" title="商品编辑" width="620px">

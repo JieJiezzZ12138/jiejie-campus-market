@@ -5,13 +5,15 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 public class JwtUtils {
+    private static final String DEFAULT_SECRET = "dev-only-change-this-jwt-secret-key-please-123456";
+    private static final String SECRET_ENV = "JWT_SECRET";
 
-    // 完美规范：秘钥长度必须大于 32 字节
-    private static final String SECRET_STRING = "JiejieMallSuperSecretKey666ThisIsVeryLong";
-    private static final SecretKey SECRET_KEY = Keys.hmacShaKeyFor(SECRET_STRING.getBytes());
+    // HS256 至少需要 32 字节密钥；开发环境允许回退默认值，生产环境必须显式注入。
+    private static final SecretKey SECRET_KEY = Keys.hmacShaKeyFor(resolveSecret().getBytes(StandardCharsets.UTF_8));
 
     // 过期时间：7天
     private static final long EXPIRE_TIME = 7 * 24 * 60 * 60 * 1000;
@@ -77,5 +79,17 @@ public class JwtUtils {
         Claims claims = parseToken(token);
         if (claims == null) return null;
         return claims.get("role", String.class);
+    }
+
+    private static String resolveSecret() {
+        String secret = System.getenv(SECRET_ENV);
+        if (secret == null || secret.trim().isEmpty()) {
+            secret = DEFAULT_SECRET;
+        }
+
+        if (secret.length() < 32) {
+            throw new IllegalStateException("JWT secret must be at least 32 characters long");
+        }
+        return secret;
     }
 }

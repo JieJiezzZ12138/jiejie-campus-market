@@ -1,15 +1,6 @@
-# 使用轻量级的 Java 21 运行环境
-FROM eclipse-temurin:21-jre-alpine
+FROM alpine:3.20
 
-# 设置工作目录
-WORKDIR /app
-
-# 复制 Auth 服务 jar 包到容器中并重命名为 app.jar
-# 用通配符避免版本号/是否带 exec 后缀导致构建失败
-COPY auth-service/target/auth-service-*.jar app.jar
-
-# 声明暴露的端口（假设 auth-service 是 8081，按需修改）
-EXPOSE 8081
-
-# 启动命令 (环境变量会在 docker run 时注入)
-ENTRYPOINT ["java", "-jar", "app.jar"]
+RUN echo "This repository does not use the root Dockerfile to build an app image." && \
+    echo "Use one of: Dockerfile.auth-service, Dockerfile.product-service, Dockerfile.order-service, Dockerfile.gateway-service, Dockerfile.frontend" && \
+    echo "Or run: docker compose build" && \
+    exit 1

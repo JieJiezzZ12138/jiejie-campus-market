@@ -11,8 +11,8 @@ public interface OrderMapper {
      * 1. 创建订单
      * 增加了对 pay_time 的处理（下单时为 null）
      */
-    @Insert("INSERT INTO orders (order_no, buyer_id, product_id, buy_count, selected_spec, address_id, receiver, receiver_phone, receiver_address, coupon_id, coupon_title, discount_amount, total_amount, order_status, create_time) " +
-            "VALUES (#{orderNo}, #{buyerId}, #{productId}, #{buyCount}, #{selectedSpec}, #{addressId}, #{receiver}, #{receiverPhone}, #{receiverAddress}, #{couponId}, #{couponTitle}, #{discountAmount}, #{totalAmount}, #{orderStatus}, NOW())")
+    @Insert("INSERT INTO orders (order_no, buyer_id, product_id, product_name, product_image, seller_id, buy_count, selected_spec, address_id, receiver, receiver_phone, receiver_address, coupon_id, coupon_title, discount_amount, total_amount, order_status, create_time) " +
+            "VALUES (#{orderNo}, #{buyerId}, #{productId}, #{productName}, #{productImage}, #{sellerId}, #{buyCount}, #{selectedSpec}, #{addressId}, #{receiver}, #{receiverPhone}, #{receiverAddress}, #{couponId}, #{couponTitle}, #{discountAmount}, #{totalAmount}, #{orderStatus}, NOW())")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     void createOrder(Order order);
 
@@ -20,38 +20,32 @@ public interface OrderMapper {
      * 2. 查询用户的订单列表 (带商品名称和主图)
      * 关联 product 表，这样前端列表能显示“商品名字”，非常重要！
      */
-    @Select("SELECT o.*, p.name as productName, p.image as productImage, p.seller_id as sellerId, " +
-            "COALESCE(o.receiver_address, bu.campus_address) as buyerAddress, su.campus_address as sellerAddress, " +
+    @Select("SELECT o.*, COALESCE(o.receiver_address, bu.campus_address) as buyerAddress, su.campus_address as sellerAddress, " +
             "bu.nickname as buyerNickname, bu.username as buyerUsername, bu.phone as buyerPhone, " +
             "su.nickname as sellerNickname, su.username as sellerUsername, su.phone as sellerPhone " +
             "FROM orders o " +
-            "LEFT JOIN product p ON o.product_id = p.id " +
             "LEFT JOIN sys_user bu ON bu.id = o.buyer_id " +
-            "LEFT JOIN sys_user su ON su.id = p.seller_id " +
+            "LEFT JOIN sys_user su ON su.id = o.seller_id " +
             "WHERE o.buyer_id = #{userId} " +
             "ORDER BY o.create_time DESC")
     List<Order> findByUserId(@Param("userId") Long userId);
 
-    @Select("SELECT o.*, p.name as productName, p.image as productImage, p.seller_id as sellerId, " +
-            "COALESCE(o.receiver_address, bu.campus_address) as buyerAddress, su.campus_address as sellerAddress, " +
+    @Select("SELECT o.*, COALESCE(o.receiver_address, bu.campus_address) as buyerAddress, su.campus_address as sellerAddress, " +
             "bu.nickname as buyerNickname, bu.username as buyerUsername, bu.phone as buyerPhone, " +
             "su.nickname as sellerNickname, su.username as sellerUsername, su.phone as sellerPhone " +
             "FROM orders o " +
-            "JOIN product p ON o.product_id = p.id " +
             "LEFT JOIN sys_user bu ON bu.id = o.buyer_id " +
-            "LEFT JOIN sys_user su ON su.id = p.seller_id " +
-            "WHERE p.seller_id = #{sellerId} " +
+            "LEFT JOIN sys_user su ON su.id = o.seller_id " +
+            "WHERE o.seller_id = #{sellerId} " +
             "ORDER BY o.create_time DESC")
     List<Order> findBySellerId(@Param("sellerId") Long sellerId);
 
-    @Select("SELECT o.*, p.name as productName, p.image as productImage, p.seller_id as sellerId, " +
-            "COALESCE(o.receiver_address, bu.campus_address) as buyerAddress, su.campus_address as sellerAddress, " +
+    @Select("SELECT o.*, COALESCE(o.receiver_address, bu.campus_address) as buyerAddress, su.campus_address as sellerAddress, " +
             "bu.nickname as buyerNickname, bu.username as buyerUsername, bu.phone as buyerPhone, " +
             "su.nickname as sellerNickname, su.username as sellerUsername, su.phone as sellerPhone " +
             "FROM orders o " +
-            "LEFT JOIN product p ON o.product_id = p.id " +
             "LEFT JOIN sys_user bu ON bu.id = o.buyer_id " +
-            "LEFT JOIN sys_user su ON su.id = p.seller_id " +
+            "LEFT JOIN sys_user su ON su.id = o.seller_id " +
             "WHERE o.id = #{id}")
     Order findByIdWithProduct(@Param("id") Long id);
 
@@ -79,32 +73,28 @@ public interface OrderMapper {
     Order findByOrderNo(@Param("orderNo") String orderNo);
 
     /** 同一商品、买家最近一笔订单（用于收件箱/会话补全 orderId，合并历史消息） */
-    @Select("SELECT o.*, p.name as productName, p.image as productImage, p.seller_id as sellerId, " +
-            "COALESCE(o.receiver_address, bu.campus_address) as buyerAddress, su.campus_address as sellerAddress, " +
+    @Select("SELECT o.*, COALESCE(o.receiver_address, bu.campus_address) as buyerAddress, su.campus_address as sellerAddress, " +
             "bu.nickname as buyerNickname, bu.username as buyerUsername, bu.phone as buyerPhone, " +
             "su.nickname as sellerNickname, su.username as sellerUsername, su.phone as sellerPhone " +
             "FROM orders o " +
-            "LEFT JOIN product p ON o.product_id = p.id " +
             "LEFT JOIN sys_user bu ON bu.id = o.buyer_id " +
-            "LEFT JOIN sys_user su ON su.id = p.seller_id " +
+            "LEFT JOIN sys_user su ON su.id = o.seller_id " +
             "WHERE o.product_id = #{productId} AND o.buyer_id = #{buyerId} " +
             "ORDER BY o.id DESC LIMIT 1")
     Order findLatestByProductAndBuyer(@Param("productId") Long productId, @Param("buyerId") Long buyerId);
 
     @Select("<script>" +
-            "SELECT o.*, p.name as productName, p.image as productImage, p.seller_id as sellerId, " +
-            "COALESCE(o.receiver_address, bu.campus_address) as buyerAddress, su.campus_address as sellerAddress, " +
+            "SELECT o.*, COALESCE(o.receiver_address, bu.campus_address) as buyerAddress, su.campus_address as sellerAddress, " +
             "bu.nickname as buyerNickname, bu.username as buyerUsername, bu.phone as buyerPhone, " +
             "su.nickname as sellerNickname, su.username as sellerUsername, su.phone as sellerPhone " +
             "FROM orders o " +
-            "LEFT JOIN product p ON o.product_id = p.id " +
             "LEFT JOIN sys_user bu ON bu.id = o.buyer_id " +
-            "LEFT JOIN sys_user su ON su.id = p.seller_id " +
+            "LEFT JOIN sys_user su ON su.id = o.seller_id " +
             "WHERE 1 = 1 " +
             "<if test='orderNo != null and orderNo != \"\"'> AND o.order_no LIKE CONCAT('%', #{orderNo}, '%') </if> " +
             "<if test='status != null'> AND o.order_status = #{status} </if> " +
             "<if test='userKeyword != null and userKeyword != \"\"'> " +
-            "AND (CAST(o.buyer_id AS CHAR) = #{userKeyword} OR CAST(p.seller_id AS CHAR) = #{userKeyword} " +
+            "AND (CAST(o.buyer_id AS CHAR) = #{userKeyword} OR CAST(o.seller_id AS CHAR) = #{userKeyword} " +
             "OR bu.username LIKE CONCAT('%', #{userKeyword}, '%') OR bu.nickname LIKE CONCAT('%', #{userKeyword}, '%') " +
             "OR su.username LIKE CONCAT('%', #{userKeyword}, '%') OR su.nickname LIKE CONCAT('%', #{userKeyword}, '%')) </if> " +
             "ORDER BY o.create_time DESC" +

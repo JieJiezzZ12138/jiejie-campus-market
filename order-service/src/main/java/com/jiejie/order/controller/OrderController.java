@@ -10,6 +10,8 @@ import com.jiejie.order.entity.PrivateMessage;
 import com.jiejie.order.entity.DisputeMessage;
 import com.jiejie.order.entity.User;
 import com.jiejie.order.entity.UserAddress;
+import com.jiejie.order.dto.ProductSummary;
+import com.jiejie.order.feign.ProductFeign;
 import com.jiejie.order.mapper.AdminNotificationMapper;
 import com.jiejie.order.mapper.CartMapper;
 import com.jiejie.order.mapper.ChatThreadMapper;
@@ -22,7 +24,6 @@ import com.jiejie.order.mapper.UserAddressMapper;
 import com.jiejie.order.mapper.CouponMapper;
 import com.jiejie.order.mapper.DisputeMessageMapper;
 import com.jiejie.order.security.AuthContext;
-import com.jiejie.product.mapper.ProductMapper;
 import jakarta.servlet.http.HttpServletRequest; // 👈 必须引入请求对象，用来拿 Token 里的身份
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +35,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.LinkedHashSet;
 import java.util.stream.Collectors;
 
 import org.springframework.util.StringUtils;
@@ -49,7 +51,7 @@ public class OrderController {
     private CartMapper cartMapper;
 
     @Autowired
-    private ProductMapper productMapper;
+    private ProductFeign productFeign;
 
     @Autowired
     private OrderFeedbackMapper orderFeedbackMapper;
@@ -105,7 +107,7 @@ public class OrderController {
 
         System.out.println("收到结算请求，真实用户: " + currentUsername + ", 总计金额: " + totalAmount);
 
-        List<Cart> cartList = cartMapper.selectByUsername(currentUsername);
+        List<Cart> cartList = cartMapper.selectByUserId(currentUserId);
         if (cartList == null || cartList.isEmpty()) {
             return Result.error("购物车是空的，无法结算");
         }
@@ -127,6 +129,7 @@ public class OrderController {
         if (cartList.isEmpty()) {
             return Result.error("未选择可结算的购物车商品");
         }
+        Map<Long, ProductSummary> productMap = hydrateCartProducts(cartList);
         if (addressId == null) {
             return Result.error("请选择收货地址");
         }
@@ -160,6 +163,10 @@ public class OrderController {
 
         for (int i = 0; i < cartList.size(); i++) {
             Cart cartItem = cartList.get(i);
+            ProductSummary currentProduct = productMap.get(cartItem.getProductId());
+            if (currentProduct == null) {
+                return Result.error("商品不存在或已下架");
+            }
             Order order = new Order();
             order.setOrderNo("ORD" + batchNo + System.currentTimeMillis() % 1000 + String.format("%02d", i));
 
@@ -167,6 +174,9 @@ public class OrderController {
             order.setBuyerId(currentUserId);
 
             order.setProductId(cartItem.getProductId());
+            order.setProductName(currentProduct.getName());
+            order.setProductImage(currentProduct.getImage());
+            order.setSellerId(currentProduct.getSellerId());
             order.setBuyCount(cartItem.getQuantity());
 
             BigDecimal itemTotal = BigDecimal.valueOf(cartItem.getPrice())
@@ -193,31 +203,19 @@ public class OrderController {
             orderMapper.createOrder(order);
 
             // 正确库存逻辑：按购买数量扣减，库存为 0 才下架
-            int reduced = productMapper.reduceStock(cartItem.getProductId(), cartItem.getQuantity());
-            if (reduced == 0) {
-                return Result.error("商品库存不足，无法下单");
+            Result reduceResult = productFeign.reduceStock(cartItem.getProductId(), cartItem.getQuantity());
+            if (reduceResult == null || reduceResult.getCode() == null || reduceResult.getCode() != 200) {
+                return Result.error(reduceResult != null && reduceResult.getMsg() != null
+                        ? reduceResult.getMsg()
+                        : "商品库存不足，无法下单");
             }
-            try {
-                com.jiejie.product.entity.Product latest = productMapper.selectById(cartItem.getProductId());
-                if (latest != null) {
-                    if (latest.getStock() != null && latest.getStock() <= 0) {
-                        productMapper.updateStatus(cartItem.getProductId(), 2);
-                    } else {
-                        productMapper.updateStatus(cartItem.getProductId(), 1);
-                    }
-                }
-            } catch (Exception ignored) {}
+            ProductSummary latest = convertProductSummary(reduceResult.getData());
+            if (latest == null) {
+                return Result.error("商品库存更新失败，请稍后重试");
+            }
 
             // 订单通知：买家待付款、商家新订单
-            Long sellerId = null;
-            try {
-                if (cartItem.getProductId() != null) {
-                    com.jiejie.product.entity.Product p = productMapper.selectById(cartItem.getProductId());
-                    sellerId = p != null ? p.getSellerId() : null;
-                }
-            } catch (Exception ignored) {
-                sellerId = null;
-            }
+            Long sellerId = latest.getSellerId();
             createNotice(order.getId(), currentUserId, "BUYER", "PAY_PENDING");
             if (sellerId != null) {
                 createNotice(order.getId(), sellerId, "SELLER", "NEW_ORDER");
@@ -226,13 +224,103 @@ public class OrderController {
 
         // 结算完成后，清空该用户的购物车
         for (Cart cartItem : cartList) {
-            cartMapper.deleteByUsernameAndProductId(currentUsername, cartItem.getProductId());
+            cartMapper.deleteByUserIdAndProductId(currentUserId, cartItem.getProductId());
         }
         if (couponId != null) {
             couponMapper.markUsed(currentUserId, couponId);
         }
 
         return Result.success("下单成功，请在订单中心完成支付！");
+    }
+
+    private Map<Long, ProductSummary> hydrateCartProducts(List<Cart> cartList) {
+        Map<Long, ProductSummary> productMap = new LinkedHashMap<>();
+        if (cartList == null || cartList.isEmpty()) {
+            return productMap;
+        }
+        for (Cart cartItem : cartList) {
+            Long productId = cartItem.getProductId();
+            if (productId == null || productMap.containsKey(productId)) {
+                continue;
+            }
+            ProductSummary summary = productFeign.getSummary(productId);
+            if (summary != null) {
+                productMap.put(productId, summary);
+            }
+        }
+        for (Cart cartItem : cartList) {
+            ProductSummary summary = productMap.get(cartItem.getProductId());
+            if (summary == null) {
+                continue;
+            }
+            cartItem.setProductName(summary.getName());
+            cartItem.setPrice(summary.getPrice());
+            cartItem.setImage(summary.getImage());
+            cartItem.setImageUrl(summary.getImageUrl());
+        }
+        return productMap;
+    }
+
+    private ProductSummary convertProductSummary(Object data) {
+        if (!(data instanceof Map<?, ?> map)) {
+            return null;
+        }
+        ProductSummary summary = new ProductSummary();
+        summary.setId(toLong(map.get("id")));
+        summary.setName(toStringValue(map.get("name")));
+        summary.setPrice(toDouble(map.get("price")));
+        summary.setImage(toStringValue(map.get("image")));
+        summary.setImageUrl(toStringValue(map.get("imageUrl")));
+        summary.setSellerId(toLong(map.get("sellerId")));
+        summary.setSellerName(toStringValue(map.get("sellerName")));
+        summary.setStock(toInteger(map.get("stock")));
+        return summary;
+    }
+
+    private Long toLong(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value instanceof String str && StringUtils.hasText(str)) {
+            try {
+                return Long.parseLong(str);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private Integer toInteger(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String str && StringUtils.hasText(str)) {
+            try {
+                return Integer.parseInt(str);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private Double toDouble(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value instanceof String str && StringUtils.hasText(str)) {
+            try {
+                return Double.parseDouble(str);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private String toStringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     private String formatAddress(UserAddress address) {

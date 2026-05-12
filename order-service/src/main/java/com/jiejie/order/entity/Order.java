@@ -20,15 +20,12 @@ public class Order {
     private String receiverPhone;
     private String receiverAddress;
 
-    // 辅助字段：连表查询，非 orders 表列
+    // 订单快照字段与辅助展示字段
     private String productName;
     private String productImage;
-    /** 商品商家，用于商家订单与消息权限 */
     private Long sellerId;
-    /** 买家与商家地址（订单中心展示） */
     private String buyerAddress;
     private String sellerAddress;
-    /** 买卖双方昵称 / 账号（订单中心展示） */
     private String buyerNickname;
     private String buyerUsername;
     private String buyerPhone;

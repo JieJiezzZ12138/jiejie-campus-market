@@ -384,10 +384,16 @@ const loadReviewList = async () => {
   reviewList.value = await request.get('/product/review/list', { params: { productId: currentReviewProduct.value.id } }) || []
 }
 const submitReview = async () => {
-  if (!currentReviewProduct.value?.id || !reviewForm.value.content.trim()) return
+  const content = reviewForm.value.content.trim()
+  const imageUrl = reviewForm.value.imageUrl?.trim() || ''
+  if (!currentReviewProduct.value?.id) return
+  if (!content && !imageUrl) {
+    ElMessage.warning('请填写评价内容或上传评价图片')
+    return
+  }
   reviewSubmitting.value = true
   try {
-    await request.post('/product/review/add', { productId: currentReviewProduct.value.id, rating: reviewForm.value.rating, content: reviewForm.value.content.trim(), imageUrl: reviewForm.value.imageUrl?.trim() || '' })
+    await request.post('/product/review/add', { productId: currentReviewProduct.value.id, rating: reviewForm.value.rating, content, imageUrl })
     reviewForm.value.content = ''
     reviewForm.value.imageUrl = ''
     ElMessage.success('评价提交成功')
