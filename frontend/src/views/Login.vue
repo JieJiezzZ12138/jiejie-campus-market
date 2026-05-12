@@ -388,6 +388,58 @@ const submitReset = async () => {
 .copyright strong { color: var(--brand); }
 .project-tag { color: #aab4c0; font-size: 11px; margin: 6px 0 0; }
 
+@media (max-width: 640px) {
+  .login-wrapper {
+    min-height: 100dvh;
+    height: auto;
+    align-items: flex-start;
+    padding: 18px 14px;
+    box-sizing: border-box;
+  }
+  .login-box {
+    width: 100%;
+    max-width: 420px;
+    padding: 26px 18px 22px;
+    border-radius: 22px;
+  }
+  .login-logo {
+    margin-bottom: 18px;
+  }
+  .login-logo h1 {
+    font-size: 21px;
+    margin: 12px 0 6px;
+  }
+  .login-logo p {
+    letter-spacing: .8px;
+  }
+  .login-tabs :deep(.el-tabs__header) {
+    margin-bottom: 16px;
+  }
+  .login-options {
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .submit-btn {
+    height: 42px;
+  }
+  .login-footer {
+    margin-top: 24px;
+    padding-top: 16px;
+  }
+  :deep(.el-input-group__append) {
+    padding: 0 10px;
+  }
+  :deep(.el-dialog) {
+    width: calc(100vw - 24px) !important;
+    margin-top: 6vh !important;
+    border-radius: 18px;
+  }
+  :deep(.el-dialog__body) {
+    padding: 14px 16px;
+  }
+}
+
 @keyframes floatIn {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }

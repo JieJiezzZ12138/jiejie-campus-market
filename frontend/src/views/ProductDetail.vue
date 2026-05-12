@@ -142,4 +142,32 @@ const addToCartFromDetail = async () => {
 .thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; border: 2px solid transparent; cursor: pointer; }
 .thumb.active { border-color: #409EFF; }
 .info { flex: 1; }
+
+@media (max-width: 768px) {
+  .page {
+    padding: 10px;
+  }
+  .detail {
+    flex-direction: column;
+    gap: 14px;
+  }
+  .img {
+    width: 100%;
+    height: min(78vw, 360px);
+  }
+  .thumbs {
+    max-width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+  }
+  .thumb {
+    flex: 0 0 auto;
+    width: 58px;
+    height: 58px;
+  }
+  .info :deep(.el-space) {
+    flex-wrap: wrap;
+  }
+}
 </style>

@@ -170,4 +170,29 @@ onActivated(() => {
   display: inline-block;
   padding-right: 6px;
 }
+
+@media (max-width: 768px) {
+  .inbox-wrap {
+    padding: 10px;
+  }
+  .card-h {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .page-title {
+    font-size: 16px;
+  }
+  :deep(.el-card__header),
+  :deep(.el-card__body) {
+    padding: 12px;
+  }
+  .inbox-table :deep(.el-table__inner-wrapper) {
+    min-width: 720px;
+  }
+  .inbox-table :deep(.el-table__body-wrapper),
+  .inbox-table :deep(.el-table__header-wrapper) {
+    overflow-x: auto;
+  }
+}
 </style>

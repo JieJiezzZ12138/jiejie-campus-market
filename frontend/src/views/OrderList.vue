@@ -913,4 +913,103 @@ onBeforeUnmount(() => {
   :deep(.el-table) { font-size: 12px; }
   :deep(.el-dialog) { width: 94vw !important; }
 }
+
+@media (max-width: 640px) {
+  .order-container {
+    padding: 8px;
+    min-height: 100dvh;
+  }
+  .box-card {
+    border-radius: 18px;
+  }
+  :deep(.el-card__header),
+  :deep(.el-card__body) {
+    padding: 12px;
+  }
+  .title {
+    font-size: 16px;
+  }
+  .header-left {
+    width: 100%;
+  }
+  .header-right {
+    gap: 8px;
+  }
+  .header-right :deep(.el-button.is-link) {
+    height: 28px;
+    line-height: 28px;
+  }
+  .order-tabs {
+    margin-bottom: 12px;
+  }
+  .order-tabs span {
+    font-size: 16px !important;
+  }
+  .status-filter {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .status-filter :deep(.el-select) {
+    width: 100% !important;
+  }
+  .order-info-line-top {
+    align-items: flex-start;
+  }
+  .p-img {
+    width: 46px;
+    height: 46px;
+  }
+  .p-name {
+    max-width: 180px;
+  }
+  :deep(.el-table__inner-wrapper) {
+    min-width: 760px;
+  }
+  :deep(.el-table__body-wrapper),
+  :deep(.el-table__header-wrapper) {
+    overflow-x: auto;
+  }
+  :deep(.el-pagination) {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  :deep(.el-pagination .el-pagination__total),
+  :deep(.el-pagination .el-pagination__sizes) {
+    display: none;
+  }
+  .notice-actions {
+    align-items: stretch;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .notice-filter {
+    min-width: 100%;
+  }
+  :deep(.el-dialog) {
+    width: calc(100vw - 24px) !important;
+    margin-top: 5vh !important;
+    border-radius: 18px;
+  }
+  :deep(.el-dialog__body) {
+    max-height: 72vh;
+    overflow-y: auto;
+    padding: 14px 16px;
+  }
+  :deep(.el-drawer.rtl) {
+    width: min(100vw, 420px) !important;
+  }
+  :deep(.el-form-item) {
+    display: block;
+  }
+  :deep(.el-form-item__label) {
+    justify-content: flex-start;
+    width: auto !important;
+    margin-bottom: 6px;
+  }
+  :deep(.el-form-item__content) {
+    margin-left: 0 !important;
+  }
+}
 </style>

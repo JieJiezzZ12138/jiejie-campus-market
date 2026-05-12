@@ -300,6 +300,37 @@ onBeforeUnmount(() => {
   flex: 1;
 }
 
+@media (max-width: 640px) {
+  .chat-page {
+    height: 100dvh;
+  }
+  .chat-header {
+    height: auto !important;
+    min-height: 56px;
+    padding: 8px 10px;
+  }
+  .header-title .title {
+    font-size: 15px;
+  }
+  .msg-list {
+    padding: 12px 10px;
+    gap: 10px;
+  }
+  .msg-row {
+    max-width: 92%;
+  }
+  .bubble {
+    padding: 9px 12px;
+  }
+  .input-bar {
+    gap: 8px;
+    padding: 10px;
+  }
+  .input-bar :deep(.el-button) {
+    padding: 8px 12px;
+  }
+}
+
 @keyframes popIn {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
